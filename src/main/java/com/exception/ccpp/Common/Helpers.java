@@ -38,6 +38,14 @@ public class Helpers {
         return result;
     }
 
+    public static String[] mergeStrings(String[] a, String[] b) {
+        String[] combined = new String[a.length + b.length];
+
+        System.arraycopy(a, 0, combined, 0, a.length);
+        System.arraycopy(b, 0, combined, a.length, b.length);
+        return combined;
+    }
+
     public static String joinStringArrays(String[] a, String[] b, String elemSep, String arraySep) {
         String joinedA = String.join(elemSep, a);
         String joinedB = String.join(elemSep, b);

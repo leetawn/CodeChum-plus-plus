@@ -1,7 +1,7 @@
 package com.exception.ccpp.GUI;
 
 import com.exception.ccpp.CCJudge.Testcase;
-import com.exception.ccpp.CCJudge.TestcaseFile;
+import com.exception.ccpp.CCJudge.QuestionFile;
 import com.exception.ccpp.CCJudge.TestcaseManualDialog;
 import com.exception.ccpp.FileManagement.FileManager;
 
@@ -12,12 +12,12 @@ import java.util.Map;
 import java.util.List;
 
 public class TestcaseManagerDialog extends JDialog implements UpdateGUICallback {
-    private final TestcaseFile tf;
+    private final QuestionFile tf;
     private JList<String> testcaseList;
     private DefaultListModel<String> listModel;
     private List<Testcase> tList;
 
-    public TestcaseManagerDialog(Window owner, TestcaseFile tf) {
+    public TestcaseManagerDialog(Window owner, QuestionFile tf) {
         super(owner instanceof Dialog ? (Dialog) owner : (Frame) owner);
         this.tf = tf;
         initializeUI();
@@ -82,7 +82,7 @@ public class TestcaseManagerDialog extends JDialog implements UpdateGUICallback 
     }
     private void handleAddTestcase() {
         // api call
-        tf.addTestcase(FileManager.getInstance(), this);
+        tf.openTestcaseDialog(FileManager.getInstance(), this);
     }
     private void handleManualAdd() {
         // api call

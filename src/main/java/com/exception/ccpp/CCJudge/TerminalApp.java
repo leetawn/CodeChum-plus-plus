@@ -433,10 +433,10 @@
             // Start the GUI on the Event Dispatch Thread (EDT)
             System.out.println(System.getenv("PROJECT_DIR"));
             String directoryPath =  System.getenv("PROJECT_DIR") + "/COMPILER_TEST/"+TEST_LANG.toUpperCase();
-            TestcaseFile tf;
+            QuestionFile tf;
             FileManager fm = null;
 
-            if (APPEND_TESTCASES || RUN_TESTCASES) tf = TestcaseFile.open(TEST_FILE);
+            if (APPEND_TESTCASES || RUN_TESTCASES) tf = QuestionFile.open(TEST_FILE);
             else tf = null;
 
             try {

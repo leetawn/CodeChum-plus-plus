@@ -81,7 +81,7 @@ public class Judge {
         runningPTY.clear();
     }
 
-    public static void judge(FileManager fm, TestcaseFile tf, BiConsumer<SubmissionRecord[], Integer> callback)  {
+    public static void judge(FileManager fm, QuestionFile tf, BiConsumer<SubmissionRecord[], Integer> callback)  {
         TerminalApp.kill();
         killJudge(true);
         romanArmy.submit(TASK_JUDGE,() -> {

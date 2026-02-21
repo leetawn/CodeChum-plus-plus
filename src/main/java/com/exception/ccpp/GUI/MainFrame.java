@@ -49,6 +49,18 @@ public class MainFrame extends JFrame {
             }
 
             @Override
+            public void windowLostFocus(WindowEvent e) {
+                TextEditor.getInstance().saveCurrentFileContent();
+                super.windowLostFocus(e);
+            }
+
+            @Override
+            public void windowDeactivated(WindowEvent e) {
+                TextEditor.getInstance().saveCurrentFileContent();
+                super.windowDeactivated(e);
+            }
+
+            @Override
             public void windowGainedFocus(WindowEvent e) {
                 FileExplorer.refreshFile();
                 super.windowGainedFocus(e);

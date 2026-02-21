@@ -5,6 +5,7 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxDocument;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RUndoManager;
 
+import javax.swing.*;
 import javax.swing.event.UndoableEditListener;
 import javax.swing.text.AbstractDocument;
 import java.nio.file.Files;
@@ -15,10 +16,12 @@ import static com.exception.ccpp.Gang.SlaveManager.slaveWorkers;
 
 public final class SFile extends CCFile {
     private RSyntaxDocument doc;
+    private boolean readonly;
     private boolean isModified = false;
 
     private SFile(Path path) {
         super(path);
+        readonly = false;
         doc = new RSyntaxDocument(Helpers.getSyntaxHightlighting(path.toString()));
         read();
     }
@@ -35,10 +38,18 @@ public final class SFile extends CCFile {
 
     /****************** INPUT/OUTPUT ******************/
     public void read() {
-        try {
-            if (Files.exists(path)) doc.insertString(0, Files.readString(path), null);
-            else Files.createFile(path);
-        } catch (Exception ignored) {}
+        if (Files.exists(path))
+        {
+            try {
+                doc.replace(0, doc.getLength(), Files.readString(path), null);
+            } catch (Exception ignored) {}
+        }
+        else
+        {
+            try {
+                Files.createFile(path);
+            } catch (Exception ignored) {}
+        }
         this.isModified = false;
     }
     public void write() {
@@ -52,13 +63,23 @@ public final class SFile extends CCFile {
     /****************** GETTERS ******************/
     public RSyntaxDocument getDoc() { return doc; }
     public boolean isDirty() { return this.isModified; }
+    public boolean isReadOnly() { return this.readonly; }
 
     /****************** SETTERS ******************/
+    public void setReadOnly(boolean value) { this.readonly = value; }
     public void setModified(boolean modified) {
         this.isModified = modified;
     }
+    public void setContent(String content) {
+        try {
+            doc.replace(0, doc.getLength(), content, null);
+        } catch (Exception ignored) {}
+    }
     public void attachTo(RSyntaxTextArea textArea) {
         textArea.setDocument(doc);
+        textArea.setEditable(!readonly);
+        textArea.getCaret().setVisible(!readonly);
+        System.err.println("readonly: " + readonly);
     }
 
 

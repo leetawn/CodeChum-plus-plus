@@ -19,7 +19,7 @@ public class TestcasesPanel extends JPanel {
     final int monitorHeight;
     JPanel mainPanel;
 
-    TestcaseFile file;
+    QuestionFile file;
     final Map<Testcase, TCEntry> activeTestcases = new ConcurrentHashMap<>();
     final ArrayList<TestcaseButton> activeBtns = new ArrayList<>();
     final Deque<TCEntry> entryPool = new ConcurrentLinkedDeque<>();
@@ -38,7 +38,7 @@ public class TestcasesPanel extends JPanel {
         activeBtns.clear();
     }
 
-    public void setTestcaseFile(TestcaseFile file) {
+    public void setTestcaseFile(QuestionFile file) {
         if (file == null) return;
         if (this.file == file) return;
         if (this.file != null) this.file.testcasesPanel = null; // remove ref callback

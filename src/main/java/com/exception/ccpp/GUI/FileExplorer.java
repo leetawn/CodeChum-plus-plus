@@ -1,6 +1,6 @@
 package com.exception.ccpp.GUI;
 
-import com.exception.ccpp.CCJudge.TestcaseFile;
+import com.exception.ccpp.CCJudge.QuestionFile;
 import com.exception.ccpp.CustomExceptions.NotDirException;
 import com.exception.ccpp.FileManagement.FileManager;
 import com.exception.ccpp.FileManagement.SFile;
@@ -33,7 +33,7 @@ public class FileExplorer extends JPanel {
     private JMenuItem addFileItem;
     private TextEditor textEditor;
     private SFile selectedFile;
-    private TestcaseFile testcaseFile;
+    private QuestionFile questionFile;
     private static FileExplorer fe_instance;
 
     public FileExplorer(String rootDir, RSyntaxTextArea editorTextArea, TextEditor textEditor){
@@ -63,7 +63,7 @@ public class FileExplorer extends JPanel {
             if (rootDir == null) return;
             fileManager.setAll(rootDir, textEditor.getCurrentSelectedLanguage());
             selectedFile = null;
-            testcaseFile = null;
+            questionFile = null;
         } catch (NotDirException e) {
             JOptionPane.showMessageDialog(this, "Invalid directory: " + e.getMessage());
         }
@@ -623,10 +623,13 @@ public class FileExplorer extends JPanel {
             this.selectedFile = null;
             textEditor.updateUnsavedIndicator(false);
             ComponentHandler.getTextEditor().textEditorLabel.setText("Select a file!");
-            return;
         }
-        setSyntaxHightlighting(newFile.getStringPath());
-        this.selectedFile = newFile;
+        else {
+            setSyntaxHightlighting(newFile.getStringPath());
+            this.selectedFile = newFile;
+        }
+        codeArea.setTabSize(4);
+        codeArea.setTabsEmulated(true);
     }
     public void setSyntaxHightlighting(String path) {
         String ext = getFileExtension(path);
@@ -641,14 +644,14 @@ public class FileExplorer extends JPanel {
     private void loadFileContent(SFile sfile) {
         setSelectedFile(sfile);
         sfile.attachTo(codeArea);
-        codeArea.setTabSize(4);
         textEditor.updateUnsavedIndicator(false);
     }
-    public TestcaseFile getTestcaseFile() {
-        return this.testcaseFile;
+    public QuestionFile getTestcaseFile() {
+        return this.questionFile;
     }
-    public void setTestcaseFile(TestcaseFile newFile) {
-        this.testcaseFile = newFile;
+    public void setTestcaseFile(QuestionFile newFile) {
+        this.questionFile = newFile;
+        newFile.createBoilerplates(fileManager);
     }
 
     public DefaultMutableTreeNode getSelectedNode() {

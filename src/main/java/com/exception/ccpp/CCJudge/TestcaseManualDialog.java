@@ -7,8 +7,6 @@ import org.fife.ui.rtextarea.RTextScrollPane;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,7 +40,7 @@ public class TestcaseManualDialog {
         return textArea;
     }
 
-    public static void show(TestcaseFile tf, UpdateGUICallback gui_cb) {
+    public static void show(QuestionFile tf, UpdateGUICallback gui_cb) {
         if (dialog != null && dialog.isDisplayable()) {
             dialog.requestFocus();
             return;

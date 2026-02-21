@@ -203,6 +203,7 @@ public class FileManager {
                             String filename = a.getPath().getFileName().toString().toLowerCase();
                             int dot = filename.lastIndexOf('.');
                             if (dot == -1 || !Files.exists(a.path)) return false;
+//                            if (a.isReadOnly()) return false;
                             return getAllowedExtensions(language).contains(filename.substring(dot));
                         })
                         .toList()
@@ -300,7 +301,7 @@ public class FileManager {
             System.err.println("Failed to open new folder: " + e.getMessage());
         }
     }
-    public void saveAll() { for (SFile sfile : s_files) sfile.write(); }
+    public void saveAll() { for (SFile sfile : all_files) sfile.write(); }
 
     public void refreshAll()
     {

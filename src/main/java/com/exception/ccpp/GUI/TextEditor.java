@@ -4,12 +4,11 @@ import com.exception.ccpp.CCJudge.TestcaseButton.TestcaseLogo;
 import com.exception.ccpp.CCJudge.Judge.JudgeVerdict;
 import com.exception.ccpp.CCJudge.TestcasesPanel.TCEntry;
 import com.exception.ccpp.CCJudge.*;
-import com.exception.ccpp.Common.Helpers;
-import com.exception.ccpp.CustomExceptions.InvalidFileException;
 import com.exception.ccpp.CustomExceptions.NotDirException;
+import com.exception.ccpp.FileManagement.CCJsonMapper;
+import com.exception.ccpp.FileManagement.DialogHelper;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.util.SystemFileChooser;
-import org.fife.ui.rsyntaxtextarea.RSyntaxDocument;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rsyntaxtextarea.Theme;
@@ -17,12 +16,8 @@ import org.fife.ui.rtextarea.RTextScrollPane;
 
 import com.exception.ccpp.FileManagement.SFile;
 import com.exception.ccpp.FileManagement.FileManager;
-import org.fife.ui.rtextarea.RUndoManager;
 
 import java.awt.event.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.event.UndoableEditListener;
 import javax.swing.text.*;
 import javax.swing.tree.*;
 import javax.swing.*;
@@ -81,6 +76,9 @@ public class TextEditor extends JPanel {
     JLabel textEditorLabel;
     final int ICON_SIZE = 20;
     public static Document defaultDoc;
+    private JTextPane q_description;
+    private JLabel q_title;
+    private JLabel q_author;
 
     public static TextEditor getInstance()
     {
@@ -175,23 +173,11 @@ public class TextEditor extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.weightx = 1;
-        gbc.weighty = 0.0;
+        gbc.weighty = 1;
         gbc.fill = GridBagConstraints.BOTH;
-        panel.add(create_1_1_panel(), gbc);
 
-        gbc.gridx = 0;
-        gbc.gridy = 1;
-        gbc.weightx = 1;
-        gbc.weighty = 0.0;
-        gbc.fill = GridBagConstraints.BOTH;
-        panel.add(create_1_2_panel(), gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.weightx = 1;
-        gbc.weighty = 1.0;
-        gbc.fill = GridBagConstraints.BOTH;
         panel.add(create_1_3_panel(), gbc);
+        panel.setBackground(Color.decode("#191c2a"));
 
         return panel;
     }
@@ -295,12 +281,12 @@ public class TextEditor extends JPanel {
         panel.add(createFolderButton);
 
         // Set a minimum height for the panel
-        panel.setPreferredSize(new Dimension(0, 30)); // Height of 30 pixels
+//        panel.setPreferredSize(new Dimension(0, 30)); // Height of 30 pixels
 
         return panel;
     }
 
-    private JPanel create_1_3_panel(){
+    private JTabbedPane create_1_3_panel(){
         // Use GridBagLayout like your working branch
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(Color.decode("#191c2a")); // Match FileExplorer background
@@ -309,15 +295,54 @@ public class TextEditor extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.weightx = 1.0;
-        gbc.weighty = 1.0;
+        gbc.weighty = 0;
         gbc.fill = GridBagConstraints.BOTH;
         gbc.insets = new Insets(0, 0, 0, 0);
 
-        // Set preferred size for the FileExplorer like in working branch
-        fileExplorerPanel.setPreferredSize(new Dimension(175, Integer.MAX_VALUE));
+//        fileExplorerPanel.setPreferredSize(new Dimension(175, Integer.MAX_VALUE));
+        panel.add(create_1_2_panel(), gbc);
+        gbc.gridy = 1;
+        gbc.weighty = 1.0;
         panel.add(fileExplorerPanel, gbc);
 
-        return panel;
+        int sides = 16;
+        int top_bot = 8;
+        q_description = new JTextPane();
+        q_description.setContentType("text/html");
+        q_description.setEditable(false);
+        q_description.setFont(new Font(null, Font.PLAIN, 16)); // size 24
+        q_description.setBackground(Color.decode("#191c2a"));
+        q_description.setBorder(BorderFactory.createEmptyBorder(0, sides, 0, sides));
+        q_title = new JLabel("");
+        q_title.setFont(new Font(null, Font.BOLD, 18)); // size 24
+        q_author = new JLabel("");
+        q_author.setFont(new Font(null, Font.ITALIC, 12)); // size 24
+
+
+        JScrollPane scrollPane = new JScrollPane(q_description);
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        JPanel q_panel = new JPanel(new GridBagLayout());
+        gbc.gridy = 0;
+        gbc.weighty = 0;
+        gbc.insets = new Insets(top_bot, sides, 0, sides);
+        q_panel.add(q_title, gbc);
+        gbc.gridy = 1;
+        gbc.insets = new Insets(0, sides, top_bot, sides);
+        q_panel.add(q_author, gbc);
+        gbc.weighty = 1;
+        gbc.gridy = 2;
+        gbc.insets = new Insets(0, 0, 0, 0);
+        q_panel.add(scrollPane, gbc);
+        q_panel.setBackground(Color.decode("#191c2a"));
+
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setBackground(Color.decode("#191c2a")); // Match FileExplorer background
+        tabbedPane.add("File Explorer", panel);
+        tabbedPane.add("Question", q_panel);
+
+
+        return tabbedPane;
     }
 
     private JPanel create_second_panel() {
@@ -1205,12 +1230,7 @@ public class TextEditor extends JPanel {
     public void saveCurrentFileContent() {
         SFile currentFile = fileExplorerPanel.getSelectedFile(); // <-- Use the new source of truth
 
-        String placeholderText = "No file selected. Select a file to start editing.";
-        String openFolderPlaceholderText = "No file selected. Please open a project or select a file to begin editing.";
-
-        String content = codeArea.getText();
-
-        if (currentFile != null && !content.equals(placeholderText) && !content.equals(openFolderPlaceholderText)) {
+        if (currentFile != null) {
             currentFile.write();
             updateUnsavedIndicator(false);
             System.out.println("File saved: " + currentFile.getStringPath());
@@ -1307,9 +1327,6 @@ public class TextEditor extends JPanel {
 
     public void setTextArea(boolean ok) {
         this.codeArea.setEditable(ok);
-        if (!ok) {
-            setCodeAreaText("No file selected. Please open a project or select a file to begin editing.");
-        }
     }
     public static void makeCoolAndNormal() {
         try {
@@ -1456,40 +1473,35 @@ public class TextEditor extends JPanel {
         public void actionPerformed(ActionEvent e) {
             FileExplorer fe = FileExplorer.getInstance();
             FileManager fm =  FileManager.getInstance();
-            SystemFileChooser fileChooser = new SystemFileChooser();
-            fileChooser.setFileSelectionMode(SystemFileChooser.FILES_ONLY);
-            fileChooser.setDialogTitle("Load CC++ Testcase File");
-            fileChooser.setCurrentDirectory(fm.getRootdir().toFile());
-            fileChooser.addChoosableFileFilter(new SystemFileChooser.FileNameExtensionFilter(CCPP_FILE_DESC,CCPP_EXT));
-
-            int result = fileChooser.showOpenDialog(getTextEditor());
-// TODO@GLENSH import testcase
-
-            if (result == SystemFileChooser.APPROVE_OPTION) {
-                File selectedFile = fileChooser.getSelectedFile();
-                if (selectedFile != null && selectedFile.isFile()) {
-                    try {
-                        if (selectedFile.getPath().endsWith(".ccpp")) {
-                            TestcaseFile tf = TestcaseFile.open(selectedFile.getPath());
-                            fe.setTestcaseFile(tf);
-                            TextEditor.getInstance().testcasesPanel.setTestcaseFile(tf);
-                        } else {
-                            throw new InvalidFileException("Invalid file! Please select .ccpp files for testcases.");
-                        }
-
-                   } catch (InvalidFileException ex) {
-                        System.err.println("ERROR4");
-                        JOptionPane.showMessageDialog(getTextEditor(), ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    }
-                }
+            if (fm.getRootdir() == null)
+            {
+                DialogHelper.showError(getTextEditor(), "Open a project directory first!", "Error");
+                return;
             }
-            if (fe.getTestcaseFile() != null) {
-                System.out.println("Testcases has " + fe.getTestcaseFile().getTestcases().size() + " testcases");
-            } else {
-                System.out.println("No testcase file selected.");
+            SystemFileChooser fc = DialogHelper.createFileDialog(fm, "Load CC++ Testcase File");
+            fc.addChoosableFileFilter(new SystemFileChooser.FileNameExtensionFilter(CCPP_FILE_DESC, CCPP_EXT));
+
+            File selected_file = DialogHelper.startDialog(fc, getTextEditor(), "Select a valid file!");
+            if (selected_file == null) { return; }
+            String file_name = selected_file.getName().toLowerCase();
+
+            assert selected_file.isFile(); // no matter what this is physically impossible to be a dir
+            if (file_name.endsWith(".ccpp")) {
+                QuestionFile tf = QuestionFile.open(selected_file.getPath());
+                fe.setTestcaseFile(tf);
+                TextEditor.getInstance().setTestcaseFile(tf);
             }
         }
     }
+
+    private void setTestcaseFile(QuestionFile tf) {
+        testcasesPanel.setTestcaseFile(tf);
+        q_author.setText(tf.getAuthor());
+        System.out.println("Description: " + tf.getDescription());
+        q_description.setText("<html>" + tf.getDescription() + "</html>");
+        q_title.setText(tf.getTitle());
+    }
+
     public static class ManageTestcaseButtonHandler extends ComponentHandler {
         public ManageTestcaseButtonHandler(TextEditor editor) {
             super(editor);
@@ -1499,31 +1511,42 @@ public class TextEditor extends JPanel {
         public void actionPerformed(ActionEvent e) {
             FileExplorer fe = getTextEditor().fileExplorerPanel;
             FileManager fm =  fe.getFileManager();
-            SystemFileChooser fileChooser = new SystemFileChooser();
-            fileChooser.setFileSelectionMode(SystemFileChooser.FILES_ONLY);
-            fileChooser.setDialogTitle("Load/Create CC++ Testcase File");
-            fileChooser.setCurrentDirectory(fm.getRootdir().toFile());
-            fileChooser.addChoosableFileFilter(new  SystemFileChooser.FileNameExtensionFilter(CCPP_FILE_DESC, CCPP_EXT));
+            if (fm.getRootdir() == null)
+            {
+                DialogHelper.showError(getTextEditor(), "Open a project directory first!", "Error");
+                return;
+            };
+            SystemFileChooser fc = DialogHelper.createFileDialog(fm, "Load/Create CC++ Testcase File");
+            fc.addChoosableFileFilter(new  SystemFileChooser.FileNameExtensionFilter(CCPP_FILE_DESC, CCPP_EXT, "json"));
 
-            int result = fileChooser.showDialog(getTextEditor(), "Open");
-
-            if (result == SystemFileChooser.APPROVE_OPTION) {
-                File selectedFile = fileChooser.getSelectedFile();
-                if (selectedFile.getName().toLowerCase().endsWith(".ccpp")) {
-                    try {
-                        Path selectedPath = selectedFile.toPath();
-                        TestcaseFile tf = TestcaseFile.open(selectedPath);
-                        TestcaseManagerDialog tf_dialog = new TestcaseManagerDialog(SwingUtilities.getWindowAncestor(getTextEditor()), tf);
-                        tf_dialog.setVisible(true);
-                    } catch (Exception ex) { // we don't have to catch NotDir because we only display directories anyway
-                        System.err.println("ERROR3");
-                        JOptionPane.showMessageDialog(getTextEditor(), ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                    }
+            File selected_file = DialogHelper.startDialog(fc, getTextEditor(), "Select a valid file!");
+            if (selected_file == null) { return; }
+            String file_name = selected_file.getName().toLowerCase();
+            if (file_name.endsWith(".ccpp")) {
+                try {
+                    Path path = selected_file.toPath();
+                    QuestionFile tf = QuestionFile.open(path);
+                    TestcaseManagerDialog tf_dialog = new TestcaseManagerDialog(SwingUtilities.getWindowAncestor(getTextEditor()), tf);
+                    tf_dialog.setVisible(true);
+                } catch (Exception ex) {
+                    // we don't have to catch NotDir because we only display directories anyway
+                    DialogHelper.showError(getTextEditor(), ex.getMessage(), "Error");
+                }
+            } else if (file_name.endsWith(".json")) {
+                try {
+                    Path selectedPath = selected_file.toPath();
+                    SystemFileChooser ccpp_fc = DialogHelper.createFileDialog(fm, "Save CC++ Testcase File");
+                    ccpp_fc.addChoosableFileFilter(new  SystemFileChooser.FileNameExtensionFilter(CCPP_FILE_DESC, CCPP_EXT));
+                    File sf = DialogHelper.startSaveDialog(ccpp_fc, getTextEditor(), "Select a valid file!");
+                    if (sf == null) { return; }
+                    QuestionFile tf = CCJsonMapper.createQuestion(selectedPath, sf.toPath());
+                    tf.write();
+                }catch (Exception ex) {
+                    System.err.println("CREATING JSON QTEST ERROR");
+                    DialogHelper.showError(getTextEditor(), ex.getMessage(), "Error");
                 }
             }
-            else {
-                System.err.println("HELLO2");
-            }
+            else DialogHelper.showError(getTextEditor(), "Select a file with a valid extension!", "Error");
         }
     }
 
@@ -1545,7 +1568,7 @@ public class TextEditor extends JPanel {
 
             fm.saveAll(); // ADDED SAVING ALL FILES
 
-            TestcaseFile tf = te.fileExplorerPanel.getTestcaseFile();
+            QuestionFile tf = te.fileExplorerPanel.getTestcaseFile();
             if (tf == null) {
                 JOptionPane.showMessageDialog(te, "IMPORT A TESTCASE FILE OR ELSE...", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
