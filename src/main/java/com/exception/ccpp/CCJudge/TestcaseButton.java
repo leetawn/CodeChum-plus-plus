@@ -15,8 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class TestcaseButton  extends RoundedButton {
     private final SVGLogo logo;
-    JLabel textLabel;
-    int testcaseNumber;
+    private JLabel textLabel;
+    private int testcaseNumber;
     public void setTestcaseNumber(int num)
     {
         testcaseNumber = num;
@@ -28,10 +28,13 @@ public class TestcaseButton  extends RoundedButton {
 
     public void setLogo(TestcaseLogo state)
     {
-        logo.setDiagram(getSVGPath(state));
-        revalidate();
-        repaint();
+        SwingUtilities.invokeLater(()->{
+            logo.setDiagram(getSVGPath(state));
+            revalidate();
+            repaint();
+        });
     }
+
 
     public TestcaseButton(int testcaseNumber) {
         super("", 30);

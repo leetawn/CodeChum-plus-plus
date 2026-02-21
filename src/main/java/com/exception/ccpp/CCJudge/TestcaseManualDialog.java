@@ -40,7 +40,7 @@ public class TestcaseManualDialog {
         return textArea;
     }
 
-    public static void show(QuestionFile tf, UpdateGUICallback gui_cb) {
+    public static void show(CCQuestion tf, UpdateGUICallback gui_cb) {
         if (dialog != null && dialog.isDisplayable()) {
             dialog.requestFocus();
             return;

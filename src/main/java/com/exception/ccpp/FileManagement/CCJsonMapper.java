@@ -1,7 +1,9 @@
 package com.exception.ccpp.FileManagement;
 
-import com.exception.ccpp.CCJudge.QuestionFile;
+import com.exception.ccpp.CCJudge.ActivityFile;
+import com.exception.ccpp.CCJudge.CCQuestion;
 import com.exception.ccpp.Crypto.AESDecrypt;
+import com.kitfox.svg.A;
 import tools.jackson.databind.*;
 
 import java.nio.file.Path;
@@ -11,9 +13,30 @@ import static com.exception.ccpp.Common.Helpers.mergeStrings;
 public class CCJsonMapper  {
 
     private static ObjectMapper mapper = new ObjectMapper();
-    public static QuestionFile createQuestion(Path json_path, Path question_file_path) {
+    public static ActivityFile createActivity(Path json_path, Path question_file_path) {
+        ActivityFile af = ActivityFile.open(question_file_path, false);
         JsonNode root = mapper.readTree(json_path);
+        String name = root.get("name").asString();
+        JsonNode questions = root.get("questions");
+
+        af.setTitle(name);
+
+        for (int i =0; i < questions.size(); i++) {
+            CCQuestion q = createQuestion(questions.get(i));
+            if (q != null)
+                af.addQuestion(q);
+        }
+
+        return af;
+    }
+
+
+    public static CCQuestion createQuestion(JsonNode root) {
         JsonNode problem = root.get("problem");
+        String problem_type = problem.get("problem_type").asString();
+        if (!problem_type.equalsIgnoreCase("coding")) {
+            return null;
+        }
         JsonNode test_cases = problem.get("test_cases");
         JsonNode boilerplates = problem.get("boilerplates");
         JsonNode creator = problem.get("creator");
@@ -27,13 +50,13 @@ public class CCJsonMapper  {
         String last_name = ln != null ? ln.asString() : "";
         String author = first_name + " " + last_name;
 
-        QuestionFile qf = QuestionFile.open(question_file_path, false);
+        CCQuestion cq = new CCQuestion();
         System.out.println("Description: " + description);
         System.out.println("Title: " + title);
-        qf.setDescription(description);
-        qf.setTitle(title);
+        cq.setDescription(description);
+        cq.setTitle(title);
         if (!author.isBlank())
-            qf.setAuthor(author);
+            cq.setAuthor(author);
 
         // BOILERPLATES
         for (int i = 0; i < boilerplates.size(); i++) {
@@ -44,7 +67,7 @@ public class CCJsonMapper  {
             boolean is_hidden = boilerplate.get("is_hidden").asBoolean();
             boolean is_readonly = boilerplate.get("is_read_only").asBoolean();
             String filename = fname + "." + fext;
-            qf.addBoilerplate(code, filename, is_hidden, is_readonly);
+            cq.addBoilerplate(code, filename, is_hidden, is_readonly);
         }
 
         // TESTCASES
@@ -63,9 +86,9 @@ public class CCJsonMapper  {
             } catch (Exception ignore) {
                 System.err.println("Error while decrypting output");
             }
-            qf.addTestcase(inputs, output_decrypted);
+            cq.addTestcase(inputs, output_decrypted);
         }
-        return qf;
+        return cq;
     }
 
 }

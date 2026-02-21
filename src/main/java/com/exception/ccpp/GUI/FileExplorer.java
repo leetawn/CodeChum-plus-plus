@@ -1,6 +1,6 @@
 package com.exception.ccpp.GUI;
 
-import com.exception.ccpp.CCJudge.QuestionFile;
+import com.exception.ccpp.CCJudge.CCQuestion;
 import com.exception.ccpp.CustomExceptions.NotDirException;
 import com.exception.ccpp.FileManagement.FileManager;
 import com.exception.ccpp.FileManagement.SFile;
@@ -33,7 +33,6 @@ public class FileExplorer extends JPanel {
     private JMenuItem addFileItem;
     private TextEditor textEditor;
     private SFile selectedFile;
-    private QuestionFile questionFile;
     private static FileExplorer fe_instance;
 
     public FileExplorer(String rootDir, RSyntaxTextArea editorTextArea, TextEditor textEditor){
@@ -63,7 +62,6 @@ public class FileExplorer extends JPanel {
             if (rootDir == null) return;
             fileManager.setAll(rootDir, textEditor.getCurrentSelectedLanguage());
             selectedFile = null;
-            questionFile = null;
         } catch (NotDirException e) {
             JOptionPane.showMessageDialog(this, "Invalid directory: " + e.getMessage());
         }
@@ -646,11 +644,10 @@ public class FileExplorer extends JPanel {
         sfile.attachTo(codeArea);
         textEditor.updateUnsavedIndicator(false);
     }
-    public QuestionFile getTestcaseFile() {
-        return this.questionFile;
+    public CCQuestion getQuestion() {
+        return TextEditor.getInstance().current_question;
     }
-    public void setTestcaseFile(QuestionFile newFile) {
-        this.questionFile = newFile;
+    public void setQuestion(CCQuestion newFile) {
         newFile.createBoilerplates(fileManager);
     }
 

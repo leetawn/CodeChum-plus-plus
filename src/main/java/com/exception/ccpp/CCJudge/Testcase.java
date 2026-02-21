@@ -1,9 +1,12 @@
 package com.exception.ccpp.CCJudge;
 
 import java.io.Serializable;
+import static com.exception.ccpp.CCJudge.TestcaseButton.TestcaseLogo;
 
 public class Testcase implements Serializable {
+
     private static final long serialVersionUID = 202512L;
+    public transient TestcaseLogo verdict = null;
     private final String expected_output;
     private final String[] inputs;
     // TODO: private boolean hidden;

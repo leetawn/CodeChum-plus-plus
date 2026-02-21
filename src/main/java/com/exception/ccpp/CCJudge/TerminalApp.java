@@ -431,55 +431,55 @@
             }
 
             // Start the GUI on the Event Dispatch Thread (EDT)
-            System.out.println(System.getenv("PROJECT_DIR"));
-            String directoryPath =  System.getenv("PROJECT_DIR") + "/COMPILER_TEST/"+TEST_LANG.toUpperCase();
-            QuestionFile tf;
-            FileManager fm = null;
-
-            if (APPEND_TESTCASES || RUN_TESTCASES) tf = QuestionFile.open(TEST_FILE);
-            else tf = null;
-
-            try {
-                fm = FileManager.getInstance().setAll(directoryPath, TEST_LANG.toLowerCase());
-                fm.setCurrentFile(fm.getFiles().getLast());
-            } catch (NotDirException e) {
-                System.err.println("ERR: fm.setAll()");
-            }
-
-
-            FileManager finalFm = fm;
-            if (OPEN_TERMINAL)
-            {
-                TerminalApp ta  = TerminalApp.getInstance();
-                if (APPEND_TESTCASES) ta.stopSetAll(finalFm, tf, null).start();
-                else ta.stopSetAll(finalFm, null, null).start();
-
-                // block main thread to mimic workload on main
-                // the testfile will be updated after the terminal is finished
-                try {
-                    while (ta.isDisplayable()) Thread.sleep(100);
-                } catch (InterruptedException e) {}
-                System.out.println("No longer displayable");
-
-                if (APPEND_TESTCASES) tf.write();
-            }
-
-            if (RUN_TESTCASES)
-            {
-                // this is how you call multithreaded judge
-                Judge.judge(fm,tf, (results, verdict) -> {
-                    int i = 0;
-                    for (SubmissionRecord sr : results) {
-                        System.out.printf("[[[------------- ACTUAL OUT Testcase %d---------------\n", ++i);
-                        System.out.println(sr.output()); // actual output
-                        System.out.printf("-------------- EXPECTED OUT Testcase %d---------------\n", i);
-                        System.out.println(sr.expected_output()); // expected output
-                        System.out.printf("------------- END Testcase %d---------------]]]\n\n", i);
-                    }
-
-                    slaveWorkers.shutdown();
-                });
-            }
+//            System.out.println(System.getenv("PROJECT_DIR"));
+//            String directoryPath =  System.getenv("PROJECT_DIR") + "/COMPILER_TEST/"+TEST_LANG.toUpperCase();
+//            ActivityFile tf;
+//            FileManager fm = null;
+//
+//            if (APPEND_TESTCASES || RUN_TESTCASES) tf = ActivityFile.open(TEST_FILE);
+//            else tf = null;
+//
+//            try {
+//                fm = FileManager.getInstance().setAll(directoryPath, TEST_LANG.toLowerCase());
+//                fm.setCurrentFile(fm.getFiles().getLast());
+//            } catch (NotDirException e) {
+//                System.err.println("ERR: fm.setAll()");
+//            }
+//
+//
+//            FileManager finalFm = fm;
+//            if (OPEN_TERMINAL)
+//            {
+//                TerminalApp ta  = TerminalApp.getInstance();
+//                if (APPEND_TESTCASES) ta.stopSetAll(finalFm, tf, null).start();
+//                else ta.stopSetAll(finalFm, null, null).start();
+//
+//                // block main thread to mimic workload on main
+//                // the testfile will be updated after the terminal is finished
+//                try {
+//                    while (ta.isDisplayable()) Thread.sleep(100);
+//                } catch (InterruptedException e) {}
+//                System.out.println("No longer displayable");
+//
+//                if (APPEND_TESTCASES) tf.write();
+//            }
+//
+//            if (RUN_TESTCASES)
+//            {
+//                // this is how you call multithreaded judge
+//                Judge.judge(fm,tf, (results, verdict) -> {
+//                    int i = 0;
+//                    for (SubmissionRecord sr : results) {
+//                        System.out.printf("[[[------------- ACTUAL OUT Testcase %d---------------\n", ++i);
+//                        System.out.println(sr.output()); // actual output
+//                        System.out.printf("-------------- EXPECTED OUT Testcase %d---------------\n", i);
+//                        System.out.println(sr.expected_output()); // expected output
+//                        System.out.printf("------------- END Testcase %d---------------]]]\n\n", i);
+//                    }
+//
+//                    slaveWorkers.shutdown();
+//                });
+//            }
 
 
         }

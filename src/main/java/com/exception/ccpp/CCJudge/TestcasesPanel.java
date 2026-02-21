@@ -19,7 +19,7 @@ public class TestcasesPanel extends JPanel {
     final int monitorHeight;
     JPanel mainPanel;
 
-    QuestionFile file;
+    CCQuestion file;
     final Map<Testcase, TCEntry> activeTestcases = new ConcurrentHashMap<>();
     final ArrayList<TestcaseButton> activeBtns = new ArrayList<>();
     final Deque<TCEntry> entryPool = new ConcurrentLinkedDeque<>();
@@ -38,24 +38,21 @@ public class TestcasesPanel extends JPanel {
         activeBtns.clear();
     }
 
-    public void setTestcaseFile(QuestionFile file) {
-        if (file == null) return;
-        if (this.file == file) return;
-        if (this.file != null) this.file.testcasesPanel = null; // remove ref callback
-        TextEditor.getInstance().closeDiffMenu();
-        this.file = file;
+    public void setQuestion(CCQuestion ccq) {
+        if (ccq == null || this.file == ccq) return;
+        if (this.file != null) this.file.testcasesPanel = null;
+        this.file = ccq;
         this.file.testcasesPanel = this;
         clearActiveTescases();
-        int i = 0;
 
-        /***** CREATE BUTTONS *****/
         TextEditor te = TextEditor.getInstance();
-        for (Testcase tc : file.getTestcases().keySet())
+        te.closeDiffMenu();
+        int i = 0;
+        for (Testcase tc : ccq.getTestcases().keySet())
         {
             helperAddTestcase(te,tc,i++);
         }
         mainPanel.revalidate();
-
     }
     private TestcaseButton addTestcase(TextEditor te, Testcase tc, TCEntry entry, int i) {
         TestcaseButton tcBtn = entry.btn;
@@ -87,6 +84,7 @@ public class TestcasesPanel extends JPanel {
         TestcaseButton btn = activeTestcases.get(tc).btn;
         if (activeTestcases.remove(tc) != null) System.err.println("REMOVED TESTCASE ");
         int i = 0;
+
         boolean found = false;
         for (TestcaseButton tb : activeBtns) {
             if (!found && tb == btn) {
@@ -104,7 +102,11 @@ public class TestcasesPanel extends JPanel {
     private void helperAddTestcase(TextEditor te, Testcase tc, int i) {
         TCEntry entry;
         if (entryPool.isEmpty()) entry = new TCEntry(new TestcaseButton(i+1), createDoc(), createDoc());
-        else entry = entryPool.pop();
+        else {
+            entry = entryPool.pop();
+            entry.btn.setTestcaseNumber(i+1);
+            entry.btn.setLogo(tc.verdict);
+        }
         addTestcase(te, tc, entry, i);
         activeBtns.add(entry.btn);
     }

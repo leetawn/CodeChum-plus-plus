@@ -1,7 +1,7 @@
 package com.exception.ccpp.GUI;
 
 import com.exception.ccpp.CCJudge.Testcase;
-import com.exception.ccpp.CCJudge.QuestionFile;
+import com.exception.ccpp.CCJudge.ActivityFile;
 import com.exception.ccpp.CCJudge.TestcaseManualDialog;
 import com.exception.ccpp.FileManagement.FileManager;
 
@@ -12,12 +12,12 @@ import java.util.Map;
 import java.util.List;
 
 public class TestcaseManagerDialog extends JDialog implements UpdateGUICallback {
-    private final QuestionFile tf;
+    private final ActivityFile tf;
     private JList<String> testcaseList;
     private DefaultListModel<String> listModel;
     private List<Testcase> tList;
 
-    public TestcaseManagerDialog(Window owner, QuestionFile tf) {
+    public TestcaseManagerDialog(Window owner, ActivityFile tf) {
         super(owner instanceof Dialog ? (Dialog) owner : (Frame) owner);
         this.tf = tf;
         initializeUI();
@@ -59,11 +59,9 @@ public class TestcaseManagerDialog extends JDialog implements UpdateGUICallback 
     }
     private void loadTestcases() {
         listModel.clear();
-        Map<Testcase, String> testcases = tf.getTestcases();
+        Map<Testcase, String> testcases = null;
 
-        if (testcases.isEmpty()) {
-            return;
-        }
+        if (testcases == null || testcases.isEmpty()) return;
 
         tList = new ArrayList<>(testcases.keySet());
         int i=0;
@@ -82,29 +80,29 @@ public class TestcaseManagerDialog extends JDialog implements UpdateGUICallback 
     }
     private void handleAddTestcase() {
         // api call
-        tf.openTestcaseDialog(FileManager.getInstance(), this);
+//        tf.openTestcaseDialog(FileManager.getInstance(), this);
     }
     private void handleManualAdd() {
         // api call
-        TestcaseManualDialog.show(tf,this);
+//        TestcaseManualDialog.show(tf,this);
 
     }
 
 
     private void handleDeleteTestcase() {
         // api call
-        int selectedIndex = testcaseList.getSelectedIndex();
-        if (selectedIndex == -1) {
-            JOptionPane.showMessageDialog(this, "Please select a testcase to delete.", "No Selection", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-        if (tList != null && selectedIndex < tList.size()) {
-            Testcase tcToDelete = tList.get(selectedIndex);
-            tf.deleteTestcase(tcToDelete);
-            loadTestcases();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error finding the selected testcase.", "Error", JOptionPane.ERROR_MESSAGE);
-        }
+//        int selectedIndex = testcaseList.getSelectedIndex();
+//        if (selectedIndex == -1) {
+//            JOptionPane.showMessageDialog(this, "Please select a testcase to delete.", "No Selection", JOptionPane.WARNING_MESSAGE);
+//            return;
+//        }
+//        if (tList != null && selectedIndex < tList.size()) {
+//            Testcase tcToDelete = tList.get(selectedIndex);
+//            tf.deleteTestcase(tcToDelete);
+//            loadTestcases();
+//        } else {
+//            JOptionPane.showMessageDialog(this, "Error finding the selected testcase.", "Error", JOptionPane.ERROR_MESSAGE);
+//        }
     }
 
     private void handleSetPassword() {
@@ -113,6 +111,6 @@ public class TestcaseManagerDialog extends JDialog implements UpdateGUICallback 
 
     @Override
     public void updateGUI() {
-        loadTestcases();
+//        loadTestcases();
     }
 }
