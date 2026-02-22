@@ -12,157 +12,109 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 
+
 public class ExecutionConfig {
-    public static final ConcurrentMap<String, Boolean> COMMAND_CACHE = new ConcurrentHashMap<>();
-    public static boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
+public static boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
 
-    public static String python_exec = null;
-    public static String cpp_exec    = null;
-    public static String c_exec      = null;
-    public static String java_exec   = "java";
+    public static int docker_cmd_length;
     static {
-        if (isCommandAvailable("python3")) python_exec = "python3";
-        else if ((python_exec = getPythonPath()) != null);
-        else python_exec = "python";
+        docker_cmd_length = getDockerCommand("", DockerImage.C_CPP, false).length;
+    }
 
-        if (isCommandAvailable("clang++")) cpp_exec = "clang++";
-        else if (isCommandAvailable("g++")) cpp_exec = "g++";
-        else if ((cpp_exec = getCPPPath()) != null);
-        else cpp_exec = null;
-
-        if (isCommandAvailable("clang")) c_exec = "clang";
-        else if (isCommandAvailable("gcc")) c_exec = "gcc";
-        else if ((c_exec = getCPath()) != null);
-        else cpp_exec = null;
+    public static String[] getDockerCommand(String rootdir, DockerImage image, boolean is_compiling)
+    {
+        String type = switch (image) {
+            case C_CPP -> "judge-slim-c";
+            case PYTHON -> "judge-slim-python";
+            default -> "judge-java";
+        };
+        if (is_compiling) return new String[]{"docker", "run", "--rm", "-v", String.format("%s:/code", rootdir), type};
+        return new String[]{"docker", "run", "--rm", "-it", "-v", String.format("%s:/code", rootdir), type};
     }
 
     public static String[] getCompileCommand(FileManager fm) {
         String[] sourceFilenames = fm.getLanguageFiles().stream().map(fm::getRelativePath).map(Path::toString).toArray(String[]::new);
-        return getCompileCommand(fm.getLanguage(), sourceFilenames);
+        return getCompileCommand(fm.getLanguage(), fm.getRootdir().toAbsolutePath().toString(), sourceFilenames);
     }
 
-    private static String[] getCompileCommand(String language, String[] sourceFilenames) {
-
-
+    private static String[] getCompileCommand(String language, String rootdir, String[] sourceFilenames) {
         String[] command;
         switch (language) {
             case "java":
-                command = new String[1 + sourceFilenames.length];
-                command[0] = "javac";
-                System.arraycopy(sourceFilenames, 0, command, 1, sourceFilenames.length);
+            {
+                String[] docker = getDockerCommand(rootdir, DockerImage.JAVA, true);
+                command = new String[1 + docker.length + sourceFilenames.length];
+
+                command[docker.length] = "javac";
+
+                System.arraycopy(docker, 0, command, 0, docker.length);
+                System.arraycopy(sourceFilenames, 0, command, docker.length + 1, sourceFilenames.length);
                 return command;
-            case "cpp", "c++":
-                if (cpp_exec == null) return null;
-                command = new String[3 + sourceFilenames.length];
-                command[0] = cpp_exec;
-                System.arraycopy(sourceFilenames, 0, command, 1, sourceFilenames.length);
-                command[1 + sourceFilenames.length] = "-o";
-                command[2 + sourceFilenames.length] = IS_WINDOWS ? "Submission.exe" : "Submission";
+            }
+            case "cpp", "c++", "c":
+            {
+                String[] docker = getDockerCommand(rootdir, DockerImage.C_CPP, true);
+                command = new String[3 + docker.length + sourceFilenames.length];
+
+                command[docker.length] = switch (language) {
+                    case "c" -> "gcc";
+                    default -> "g++";
+                };
+                command[docker.length + 1 + sourceFilenames.length] = "-o";
+                command[docker.length + 2 + sourceFilenames.length] = "submission";
+
+                System.arraycopy(docker, 0, command, 0, docker.length);
+                System.arraycopy(sourceFilenames, 0, command, docker.length + 1, sourceFilenames.length);
                 return command;
-            case "c":
-                if (c_exec == null) return null;
-                command = new String[3 + sourceFilenames.length];
-                command[0] = c_exec;
-                System.arraycopy(sourceFilenames, 0, command, 1, sourceFilenames.length);
-                command[1 + sourceFilenames.length] = "-o";
-                command[2 + sourceFilenames.length] = IS_WINDOWS ? "Submission.exe" : "Submission";
-                return command;
+            }
             default:
                 return null;
         }
     }
-    // make sure to set the dir of process to root dir
+
     public static String[] getExecuteCommand(FileManager fm) {
-        String[] cmd = switch (fm.getLanguage()) {
-            case "java" -> new String[]{(java_exec == null) ? "java" : java_exec, fm.getCurrentFileStringPath().replace(".java","").replaceAll("[\\\\/]",".")}; // idk if com.exception.ccpp.Main is in all program
-            case "cpp", "c++", "c" -> new String[]{(fm != null) ? (fm.getRootdir().toString() + "/Submission") : (Paths.get(".").toAbsolutePath().normalize().toString() + "/Submission")};
-            case "python", "py" -> new String[]{ python_exec, fm.getCurrentFileStringPath()};
-            default -> throw new IllegalArgumentException("Unsupported language.");
+        String rootdir = fm.getRootdir().toAbsolutePath().toString();
+        String[] cmd;
+        String[] docker_cmd;
+        switch (fm.getLanguage()) {
+            case "java":
+            {
+                cmd= new String[docker_cmd_length + 2];
+                docker_cmd = getDockerCommand(rootdir, DockerImage.JAVA, false);
+                cmd[docker_cmd_length] = "java";
+                cmd[docker_cmd_length + 1] = String.format("./%s",fm.getCurrentFileStringPath().replace(".java","").replaceAll("[\\\\/]",".")); // idk if com.exception.ccpp.Main is in all program
+                break;
+            }
+            case "cpp", "c++", "c":
+            {
+                cmd = new String[docker_cmd_length + 3];
+                docker_cmd = getDockerCommand(rootdir, DockerImage.C_CPP, false);
+                int i = 0;
+                cmd[docker_cmd_length + i] = "stdbuf";
+                cmd[docker_cmd_length + (++i)] = "-o0";
+                cmd[docker_cmd_length + (++i)] = "./submission";
+                break;
+            }
+            case "python", "py":
+            {
+                cmd= new String[docker_cmd_length + 2];
+                docker_cmd = getDockerCommand(rootdir, DockerImage.PYTHON, false);
+                cmd[docker_cmd_length] = "python";
+                cmd[docker_cmd_length + 1] = String.format("./%s",fm.getCurrentFileStringPath());
+                break;
+            }
+            default:
+                throw new IllegalArgumentException("Unsupported language.");
         };
+        System.arraycopy(docker_cmd, 0, cmd, 0, docker_cmd_length);
         return cmd;
     }
 
-    public static boolean isCommandAvailable(String command) {
-        // 1. Check the cache first (O(1))
-        if (command == null) return false;
-        System.out.println("Checking command: " + command);
-        if (COMMAND_CACHE.containsKey(command)) {
-            boolean val = COMMAND_CACHE.get(command);
-            System.out.println("Command " + command + " exists: " + val);
-            return val;
-        }
-
-        String os = System.getProperty("os.name").toLowerCase();
-        String checkCmd = os.contains("win") ? "where" : "which";
-
-        boolean isAvailable = false;
-        try {
-            Process process = new ProcessBuilder(checkCmd, command)
-                    .redirectErrorStream(true)
-                    .start();
-
-            // IMPORTANT: Limit the wait time to avoid indefinite hangs
-            // We expect the check to be fast, so 5 seconds is very generous.
-            if (process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) {
-                isAvailable = process.exitValue() == 0;
-            } else {
-                // Process timed out (very rare for 'which'/'where')
-                process.destroyForcibly();
-            }
-        } catch (Exception e) {
-            // Error starting or waiting for the process
-            isAvailable = false;
-        }
-
-        // 3. Store the result in the cache
-        COMMAND_CACHE.put(command, isAvailable);
-        System.out.println("Command " + command+ " exists: " + isAvailable);
-        return isAvailable;
+    public enum DockerImage {
+        JAVA,
+        C_CPP,
+        PYTHON
     }
-
-    public static String getPythonPath() {
-        return getInternalPath("python/python.exe", null);
-    }
-
-    public static String getCPath() {
-        return getInternalPath("w64devkit/bin/gcc.exe", null);
-    }
-    public static String getCPPPath() {
-        return getInternalPath("w64devkit/bin/g++.exe", null);
-    }
-
-    public static String getJavaExecutablePath() {
-        String userDir = System.getProperty("user.dir");
-
-        // Check Choice 2 location (Standard jpackage)
-        File jpackageRuntime = new File(userDir, "runtime/bin/java.exe");
-        if (jpackageRuntime.exists()) return jpackageRuntime.getAbsolutePath();
-
-        // Check Choice 1 location (Your manual redist)
-        File manualRuntime = new File(userDir, "app/redist/java-runtime/bin/java.exe");
-        if (manualRuntime.exists()) return manualRuntime.getAbsolutePath();
-
-        return "java"; // Fallback to system path
-    }
-
-    private static String getInternalPath(String relativePath, String fallback) {
-        // user.dir points to the folder containing the .exe launcher
-        String installPath = System.getProperty("user.dir");
-
-        // In a jpackage MSI/APP_IMAGE, resources usually end up in 'app'
-        File bundledFile = new File(installPath, "app/redist/" + relativePath);
-
-        if (bundledFile.exists()) {
-            System.err.println("[bundled_compiler]: "+bundledFile.getAbsolutePath());
-            return bundledFile.getAbsolutePath();
-        }
-
-        // Debug: Print where we looked if it fails
-        System.err.println("[bundled_compiler] Bundled tool not found at: " + bundledFile.getAbsolutePath());
-        return fallback; // Fallback to system PATH
-    }
-
-
 
     static String NO_JDK_ERROR = "Java Compiler not found.\nEnsure you are running on a JDK.\n";
     static String NO_C_COMPILER_ERROR =

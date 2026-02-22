@@ -30,10 +30,7 @@ public class ToolchainStatusDialog extends JDialog {
         setupCustomRenderer(table);
 
         // Add Components to check
-        checkComponent(model, "Java Runtime (JRE)", ExecutionConfig.java_exec);
-        checkComponent(model, "C Compiler (GCC)", ExecutionConfig.c_exec);
-        checkComponent(model, "C++ Compiler (G++)", ExecutionConfig.cpp_exec);
-        checkComponent(model, "Python Interpreter", ExecutionConfig.python_exec);
+        checkComponent(model, "Docker", "docker");
 
         add(new JScrollPane(table), BorderLayout.CENTER);
 

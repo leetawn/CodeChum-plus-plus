@@ -28,8 +28,8 @@ public class Judge {
 //    TODO@CCPP2.0 Add centralize tracking of threads for forcibly killing them
 //    private static Map<JudgeSlave, Boolean> activeSlaves = new ConcurrentHashMap<>();
     private static ConcurrentLinkedDeque<Process> runningPTY = new ConcurrentLinkedDeque<>();
-    private static Map<String, String> env;
     private static DebugLog judge_logger = DebugLog.getInstance();
+    private static Map<String, String> env;
     static {
         env = new HashMap<>(System.getenv());
         if (!env.containsKey("TERM")) env.put("TERM", "dumb");
@@ -222,15 +222,7 @@ public class Judge {
         logger.logln("-> Compiling: " + String.join(" ", compileCommand));
         ProcessBuilder pb = new ProcessBuilder(compileCommand);
 
-        if (ExecutionConfig.IS_WINDOWS)
-        {
-            Map<String, String> env = pb.environment();
-            String systemPath = env.get("Path"); // Get the existing system path
 
-            String installPath = System.getProperty("user.dir");
-            File binDir = new File(installPath, "app/redist/w64devkit/bin");
-            env.put("Path", binDir.getAbsolutePath() + File.pathSeparator + systemPath);
-        }
         pb.directory(fm.getRootdir().toFile());
 
         return startCompilation(pb);
@@ -381,9 +373,7 @@ public class Judge {
         // RETURNS Verdicts: RE/TLE/NONE
         public SubmissionRecord call()  {
             // VARS
-            boolean is_python = language.equals("python");
-            String cmd_newline = "\r\n";
-            if (is_python || !ExecutionConfig.IS_WINDOWS) cmd_newline = "\n";
+            String cmd_newline = "\n";
             String[] inputs = tc.getInputs();
 
 
@@ -394,7 +384,7 @@ public class Judge {
                         .setEnvironment(env)
                         .setRedirectErrorStream(true)
                         .setDirectory(rootdir)
-                        .setConsole(is_python)
+                        .setConsole(false)
                         .start();
             } catch (IOException e) {
                 return finishQuota();
@@ -409,16 +399,12 @@ public class Judge {
                 processInputWriter.write(n+cmd_newline);
                 processInputWriter.flush();
             }
-            catch (IOException e) {
+            catch (Exception e) {
                 return finishQuota();
-            } finally {
-                try {
-                    processInputWriter.close();
-                } catch (IOException e) {}
             }
 
             try {
-                Thread.sleep(100);
+                Thread.sleep(50);
             } catch (InterruptedException e) {}
 
             new Judge.OutputReader(process.getInputStream(), transcript).call();

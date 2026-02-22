@@ -1,0 +1,9 @@
+docker run --rm -v [root_dir]:/code [image] [cmd]
+
+docker save judge-java > judge-java.tar
+docker save judge-slim-c > judge-slim-c.tar
+docker save judge-slim-python > judge-slim-python.tar
+
+docker load < docker-images/judge-slim.tar
+docker load < docker-images/judge-java.tar
+docker load < docker-images/judge-python.tar

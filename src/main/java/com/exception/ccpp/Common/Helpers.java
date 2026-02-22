@@ -61,7 +61,8 @@ public class Helpers {
         return input.replaceAll(regex, "");
     }
     public static String stripAnsiCRLines(String input) {
-        return stripCRLines(stripAnsi(input));
+        return input;
+        //return stripCRLines(stripAnsi(input));
     }
 
 

@@ -102,8 +102,8 @@
                                     </includes>
                                 </resource>
                                 <resource>
-                                    <directory>${project.basedir}/redist</directory>
-                                    <targetPath>redist</targetPath>
+                                    <directory>${project.basedir}/docker-images</directory>
+                                    <targetPath>docker-images</targetPath>
                                 </resource>
                             </resources>
                         </configuration>
