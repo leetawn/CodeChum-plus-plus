@@ -162,7 +162,8 @@
         private boolean initTerminalProcess() {
             SubmissionRecord sr = null;
             try {
-                sr = Judge.compile(fm, output_logger);
+                // TODO@GLENSH FIX THIS SHIT CONTAINER_ID
+                sr = Judge.compile(fm, output_logger, "");
             } catch (Exception e) {
                 System.err.println("Compilation error:\n" + e.getMessage());
                 return false;

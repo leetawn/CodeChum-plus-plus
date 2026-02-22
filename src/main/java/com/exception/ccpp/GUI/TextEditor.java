@@ -1029,12 +1029,9 @@ public class TextEditor extends JPanel {
         if (!buffer.isEmpty()) {
             final AttributeSet final_style = styleToApply;
             final String final_str = buffer.toString();
-            SwingUtilities.invokeLater( () ->
-            {
-                try {
-                    doc.insertString(doc.getLength(), final_str, final_style);
-                } catch (BadLocationException ignored) {}
-            });
+            try {
+                doc.insertString(doc.getLength(), final_str, final_style);
+            } catch (BadLocationException ignored) {}
         }
         if (mismatch) { return 2; }
         if (excess) { return 1; }

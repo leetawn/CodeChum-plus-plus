@@ -86,9 +86,7 @@ public class SlaveManager {
         }
 
         public <T>  T invoke(ForkJoinTask<T> task) {
-            T f = romanArmy.invoke(task);
-            romanArmy.submit(()->{});
-            return f;
+            return romanArmy.invoke(task);
         }
     }
 

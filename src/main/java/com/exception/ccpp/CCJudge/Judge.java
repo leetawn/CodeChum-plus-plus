@@ -3,6 +3,7 @@ package com.exception.ccpp.CCJudge;
 import com.exception.ccpp.Common.Helpers;
 import com.exception.ccpp.Debug.CCLogger;
 import com.exception.ccpp.Debug.DebugLog;
+import com.exception.ccpp.DockerHandler;
 import com.exception.ccpp.FileManagement.FileManager;
 import com.exception.ccpp.FileManagement.SFile;
 import com.pty4j.PtyProcessBuilder;
@@ -16,9 +17,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static com.exception.ccpp.CCJudge.ExecutionConfig.NO_C_COMPILER_ERROR;
+import static com.exception.ccpp.CCJudge.ExecutionConfig.*;
 import static com.exception.ccpp.Gang.SlaveManager.romanArmy;
 import static com.exception.ccpp.Gang.SlaveManager.slaveWorkers;
+import static com.exception.ccpp.DockerHandler.DockerImageType;
 
 public class Judge {
     public static final String TASK_TESTCASE_RUNNER = "testcase_runner";
@@ -29,7 +31,7 @@ public class Judge {
 //    private static Map<JudgeSlave, Boolean> activeSlaves = new ConcurrentHashMap<>();
     private static ConcurrentLinkedDeque<Process> runningPTY = new ConcurrentLinkedDeque<>();
     private static DebugLog judge_logger = DebugLog.getInstance();
-    private static Map<String, String> env;
+    public static Map<String, String> env;
     static {
         env = new HashMap<>(System.getenv());
         if (!env.containsKey("TERM")) env.put("TERM", "dumb");
@@ -88,18 +90,28 @@ public class Judge {
             SubmissionRecord judge_res;
             String rootdir = fm.getRootdir().toString();
             String language = fm.getLanguage();
+            DockerImageType dt = switch (language.toLowerCase())
+            {
+                case "cpp", "c++", "c" -> DockerImageType.C_CPP;
+                case "python", "py" -> DockerImageType.PYTHON;
+                default -> DockerImageType.JAVA;
+            };
 
             Map<Testcase, String> testcases = tf.getTestcases();
             int testcases_size = testcases.size();
+
+            ArrayList<Testcase>  testcases_keys = new ArrayList<>(testcases.keySet());
+
             int i = 0;
             SubmissionRecord[] verdicts = new SubmissionRecord[testcases_size];
-            for (Testcase tc : testcases.keySet()) {
+            for (Testcase tc : testcases_keys) {
                 verdicts[i++] = new SubmissionRecord(JudgeVerdict.UE, "Unknown Error", tc);
             }
             // COMPILE
+            String container_id = DockerHandler.createWorker(rootdir, dt);
             judge_logger.logln("[Judge.judge]: Compiling...");
             try {
-                judge_res = compile(fm, judge_logger); // WAITS TO FINISH
+                judge_res = compile(fm, judge_logger, container_id); // WAITS TO FINISH
                 if (judge_res.verdict() == JudgeVerdict.CE) {
                     judge_logger.errln("[Judge.judge]: Compiler Error!");
                     recordCopy(verdicts, judge_res, testcases_size);
@@ -122,20 +134,14 @@ public class Judge {
 
             // judgeInteractively (Parallel)
             String[] cmd = ExecutionConfig.getExecuteCommand(fm);
-            List<Callable<SubmissionRecord>> tasks = new ArrayList<>();
             List<Future<SubmissionRecord>> futures = new ArrayList<>();
-            i =1;
 
-            // TESTCASE
-            for (Testcase tc : testcases.keySet()) {
-                judge_logger.logf("[Judge.judge]: Running Testcase %d...\n", i);
-                tasks.add(new JudgeSlave(cmd, rootdir, language, tc, i++, judge_logger));
-            }
+            ExecutionConfig.setExecCmdContainerID(cmd, container_id);
+            Callable<SubmissionRecord>[] tasks = romanArmy.invoke(new DivideWork(cmd, rootdir, language, testcases_keys, judge_logger, 0, testcases_keys.size() - 1, container_id, dt));
 
             try {
-                futures = slaveWorkers.invokeAll(TASK_TESTCASE_RUNNER,tasks);
+                futures = slaveWorkers.invokeAll(TASK_TESTCASE_RUNNER, List.of(tasks));
             } catch (InterruptedException e) {}
-            ArrayList<SubmissionRecord> res =  new ArrayList<>();
 
             i = 0;
             int status = 0;
@@ -197,20 +203,16 @@ public class Judge {
         } catch (IOException ignored) {}
     }
 
-    static SubmissionRecord compile(FileManager fm, CCLogger logger) throws IOException, InterruptedException {
+    static SubmissionRecord compile(FileManager fm, CCLogger logger, String container_id) throws IOException, InterruptedException {
         if (logger == null) logger = judge_logger;
         String[] compileCommand = null;
         switch (fm.getLanguage().toLowerCase()) {
             case "java": {
-                SubmissionRecord sr = startJavaCompilation(fm, logger);
-                if (sr == null) {
-                    compileCommand = ExecutionConfig.getCompileCommand(fm);
-                    break;
-                }
-                return sr;
+                compileCommand = ExecutionConfig.getCompileCommand(fm, container_id);
+                break;
             }
             case "c","cpp", "c++": {
-                compileCommand = ExecutionConfig.getCompileCommand(fm);
+                compileCommand = ExecutionConfig.getCompileCommand(fm, container_id);
                 if (compileCommand == null) return new SubmissionRecord(JudgeVerdict.CE, NO_C_COMPILER_ERROR, null);
                 break;
             }
@@ -219,10 +221,10 @@ public class Judge {
                 return new SubmissionRecord(JudgeVerdict.NONE, "No compilation required for " + fm.getLanguage(), null);
             }
         }
-        logger.logln("-> Compiling: " + String.join(" ", compileCommand));
+        System.err.println("-> Compiling: " + String.join(" ", compileCommand));
+
+
         ProcessBuilder pb = new ProcessBuilder(compileCommand);
-
-
         pb.directory(fm.getRootdir().toFile());
 
         return startCompilation(pb);
@@ -292,7 +294,7 @@ public class Judge {
         String errorOutput = readStream(compileProcess.getErrorStream());
 
         if (compileProcess.waitFor(COMPILE_TIME_LIMIT_SEC, TimeUnit.SECONDS) && compileProcess.exitValue() != 0) {
-            String ceMsg = "Compiler Errors:\n" + errorOutput;
+            String ceMsg = "Compiler Errors ("+ compileProcess.exitValue() +"):\n" + errorOutput;
             judge_logger.errln(ceMsg);
             compileProcess.destroy();
             return new SubmissionRecord(JudgeVerdict.CE, ceMsg, null);
@@ -316,6 +318,68 @@ public class Judge {
     }
 
     /*********************** STATIC CLASSES, ENUMS OR WHATEVER **********************/
+    public static class DivideWork extends RecursiveTask<Callable<SubmissionRecord>[]> {
+        private final int start, end;
+        private final String rootdir, language;
+        private String[] cmd;
+        private final ArrayList<Testcase> testcases;
+        private final DebugLog logger;
+        private String container_id;
+        DockerImageType docker_image_type;
+
+        public DivideWork(
+            String[] cmd,
+            String rootdir,
+            String language,
+            ArrayList<Testcase> testcases,
+            DebugLog logger,
+            int start,
+            int end,
+            String container_id,
+            DockerImageType dockerImageType
+        ) {
+            this.cmd = cmd;
+            this.rootdir = rootdir;
+            this.testcases = testcases;
+            this.language = language;
+            this.logger = logger;
+            this.start = start;
+            this.end = end;
+            this.container_id = container_id;
+            this.docker_image_type = dockerImageType;
+        }
+
+        @Override
+        protected Callable<SubmissionRecord>[] compute() {
+            if (start > end) return new Callable[0];
+
+            int length = end - start;
+            int mid = start + length / 2;
+            if (start == end) {
+                if (container_id == null)
+                {
+                    container_id = DockerHandler.createWorker(rootdir, docker_image_type);
+                }
+
+                String[] new_cmd = Arrays.copyOf(cmd, cmd.length);
+                setExecCmdContainerID(new_cmd, container_id);
+                return new Callable[]{new JudgeSlave(new_cmd, rootdir, language, testcases.get(mid), mid, judge_logger)};
+            }
+
+            DivideWork left = new DivideWork(cmd, rootdir, language, testcases, logger, start, mid, container_id, docker_image_type);
+            DivideWork right = new DivideWork(cmd, rootdir, language, testcases, logger, mid + 1, end, null, docker_image_type);
+            left.fork();
+
+            Callable<SubmissionRecord>[] rightResult = right.compute();
+            Callable<SubmissionRecord>[] leftResult = left.join();
+
+            // merge left and right
+            Callable<SubmissionRecord>[] merged = new Callable[leftResult.length + rightResult.length];
+            System.arraycopy(leftResult, 0, merged, 0, leftResult.length);
+            System.arraycopy(rightResult, 0, merged, leftResult.length, rightResult.length);
+            return merged;
+        }
+    }
 
     static class JudgeSlave implements Callable<SubmissionRecord> {
         private static final long INPUT_DELAY_MS = 50;
@@ -362,7 +426,7 @@ public class Judge {
         }
 
         // Slave done with work
-        private SubmissionRecord finishQuota() {
+        SubmissionRecord finishQuota() {
             mutilate();
             runningPTY.remove(process);
             return result;
@@ -384,69 +448,100 @@ public class Judge {
                         .setEnvironment(env)
                         .setRedirectErrorStream(true)
                         .setDirectory(rootdir)
-                        .setConsole(false)
+                        .setConsole(true)
                         .start();
             } catch (IOException e) {
                 return finishQuota();
             }
             runningPTY.add(process);
 
+            InputStream in = process.getInputStream();
+            OutputStream out = process.getOutputStream();
+            BufferedWriter processInputWriter = new BufferedWriter(new OutputStreamWriter(out));
 
-            BufferedWriter processInputWriter = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
+            romanArmy.submit(TASK_JUDGE,()->{
+                byte[] buffer = new byte[1000];
+                int i = 0;
+                try {
+                    Thread.sleep(25);
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        String b = new String(buffer, 0, read);
+                        transcript.append(b);
+
+                        if (in.available() <= 0 && i < inputs.length) {
+                            processInputWriter.write(inputs[i++] + cmd_newline);
+                            processInputWriter.flush();
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    try {
+                        in.close();
+                        out.close();
+                    } catch (Exception e) {}
+                }
+            });
+
+
             long startTime = System.currentTimeMillis();
 
-            try {
-                processInputWriter.write(n+cmd_newline);
-                processInputWriter.flush();
-            }
-            catch (Exception e) {
-                return finishQuota();
-            }
+            if (!process.isAlive() && process.exitValue() == 0)
+                goodExit();
 
             try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {}
-
-            new Judge.OutputReader(process.getInputStream(), transcript).call();
-
-            long remainingTime = TIME_LIMIT_MS - (System.currentTimeMillis() - startTime);
-
-            try {
-                process.waitFor(remainingTime, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) { return finishQuota().setOutput("Execution Interrupted\n"); }
-
-            if (process.isAlive()) {
-                return finishQuota()
-                    .setVerdict(Judge.JudgeVerdict.TLE)
-                    .setOutput(Helpers.stripAnsiCRLines(
-                            transcript
-                                .append("\nTLE (Time Limit Exceeded)\n")
-                                .toString()
-                        ).trim()
-                    );
+                long remainingTime;
+                do
+                {
+                    remainingTime = TIME_LIMIT_MS - (System.currentTimeMillis() - startTime);
+                    if (process.waitFor(200, TimeUnit.MILLISECONDS))
+                        break;
+                } while (remainingTime > 0);
+            } catch (InterruptedException e) {
+                return finishQuota().setOutput("Execution Interrupted\n");
             }
-            // PROGRAM RUNTIME ERROR
-            else if (process.exitValue() != 0) {
-                String errorOutput = "UnknownError";
-                try {
-                    errorOutput = readStream(process.getErrorStream());
-                } catch (IOException e) {}
-                logger.errf("[TC %d]Runtime Error Details:\n%s\n", tc_num, errorOutput);
-                return finishQuota()
+
+            if (process.isAlive()) return tleExit();
+            else if (process.exitValue() != 0) return rteExit();
+            return goodExit();
+        }
+
+        private SubmissionRecord tleExit()
+        {
+            return finishQuota()
+                .setVerdict(Judge.JudgeVerdict.TLE)
+                .setOutput(Helpers.stripAnsiCRLines(
+                        transcript
+                            .append("\nTLE (Time Limit Exceeded)\n")
+                            .toString()
+                    ).trim()
+                );
+        }
+
+        private SubmissionRecord rteExit() {
+            String errorOutput = "UnknownError";
+            try {
+                errorOutput = readStream(process.getErrorStream());
+            } catch (IOException e) {}
+            System.err.printf("[TC %d]Runtime Error Details:\n%s\n", tc_num, errorOutput);
+            return finishQuota()
                     .setVerdict(Judge.JudgeVerdict.RE)
                     .setOutput(Helpers.stripAnsiCRLines(
-                        transcript
-                            .append("RTE (Runtime Error) - Exit Code: ")
-                            .append(process.exitValue())
-                            .append("\n")
-                            .toString()
-                        ).trim()
-                    );
-            } else {
-                final String raw = transcript.toString();
-                final String res = Helpers.stripAnsiCRLines(raw);
-                return finishQuota().setVerdict(JudgeVerdict.NONE).setOutput((res).trim());
-            }
+                                    transcript
+                                            .append("RTE (Runtime Error) - Exit Code: ")
+                                            .append(process.exitValue())
+                                            .append("\n")
+                                            .toString()
+                            ).trim()
+            );
+        }
+
+        private SubmissionRecord goodExit()
+        {
+            final String raw = transcript.toString();
+            final String res = Helpers.stripAnsiCRLines(raw);
+            return finishQuota().setVerdict(JudgeVerdict.NONE).setOutput((res).trim());
         }
     }
 
@@ -465,18 +560,8 @@ public class Judge {
 
         @Override
         public Void call() {
-            byte[] buffer = new byte[1000];
             int c;
-            try {
-                int read;
 
-                while ((read = in.read(buffer)) != -1) {
-                    String b = new String(buffer, 0, read);
-                    transcript.append(b);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
             return null;
         }
     }

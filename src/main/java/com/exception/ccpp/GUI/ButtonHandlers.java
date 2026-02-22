@@ -205,6 +205,7 @@ public class ButtonHandlers {
     public static class SubmitButtonHandler extends ComponentHandler {
         FileManager fm;
         TextEditor te;
+        long startTime;
 
         public SubmitButtonHandler(TextEditor editor) {
             super(editor);
@@ -227,24 +228,21 @@ public class ButtonHandlers {
 
             CCQuestion ccq = te.current_question;
             if (ccq == null) {
-                JOptionPane.showMessageDialog(te, "IMPORT A ACTIVITY FILE OR ELSE...", "Error", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(te, "Please load a activity file", "No activity", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-
             te.submitCodeButton.setBackground(Color.decode("#0e4728"));
             te.submitCodeButton.setEnabled(false);
 
             final Map<Testcase, TestcasesPanel.TCEntry> activeTC = TestcasesPanel.getInstance().getActiveTestcases();
             SwingUtilities.invokeLater(() -> {
-
                 for (Map.Entry<Testcase, TestcasesPanel.TCEntry> entry : activeTC.entrySet())
                 {
                     entry.getKey().verdict = null;
                     entry.getValue().btn.setLogo(TestcaseLogo.COMPILING);
                 }
             });
-
-            System.out.println("TF has " + ccq.getTestcases().size() + " testcases");
+            startTime = System.currentTimeMillis();
             Judge.judge(FileManager.getInstance(), ccq, (results, verdict) -> {
 
                 if (results.length <= 0)  {
@@ -320,6 +318,8 @@ public class ButtonHandlers {
 
         private void enableButton()
         {
+            long endTime = System.currentTimeMillis();
+            System.out.printf("Results finished in : %d milliseconds\n", (endTime - startTime));
             romanArmy.submit("enable",()->{
                 try {
                     Thread.sleep(500);

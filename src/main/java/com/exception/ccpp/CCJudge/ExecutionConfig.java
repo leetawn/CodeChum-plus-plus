@@ -1,120 +1,79 @@
 package com.exception.ccpp.CCJudge;
 
 
-import com.exception.ccpp.Common.Helpers;
 import com.exception.ccpp.FileManagement.FileManager;
 
-import java.io.File;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
-
+import static com.exception.ccpp.DockerHandler.DockerImageType;
+import static com.exception.ccpp.DockerHandler.getDockerCommand;
 
 public class ExecutionConfig {
 public static boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
 
-    public static int docker_cmd_length;
-    static {
-        docker_cmd_length = getDockerCommand("", DockerImage.C_CPP, false).length;
-    }
-
-    public static String[] getDockerCommand(String rootdir, DockerImage image, boolean is_compiling)
-    {
-        String type = switch (image) {
-            case C_CPP -> "judge-slim-c";
-            case PYTHON -> "judge-slim-python";
-            default -> "judge-java";
-        };
-        if (is_compiling) return new String[]{"docker", "run", "--rm", "-v", String.format("%s:/code", rootdir), type};
-        return new String[]{"docker", "run", "--rm", "-it", "-v", String.format("%s:/code", rootdir), type};
-    }
-
-    public static String[] getCompileCommand(FileManager fm) {
+    public static String[] getCompileCommand(FileManager fm, String container_id) {
         String[] sourceFilenames = fm.getLanguageFiles().stream().map(fm::getRelativePath).map(Path::toString).toArray(String[]::new);
-        return getCompileCommand(fm.getLanguage(), fm.getRootdir().toAbsolutePath().toString(), sourceFilenames);
+        return getCompileCommand(fm.getLanguage(), sourceFilenames, container_id);
     }
 
-    private static String[] getCompileCommand(String language, String rootdir, String[] sourceFilenames) {
-        String[] command;
+    private static String[] getCompileCommand(String language, String[] sourceFilenames, String container_id) {
+
+        String sources = String.join(" ", sourceFilenames);
+        String[] exec_cmd;
         switch (language) {
             case "java":
             {
-                String[] docker = getDockerCommand(rootdir, DockerImage.JAVA, true);
-                command = new String[1 + docker.length + sourceFilenames.length];
-
-                command[docker.length] = "javac";
-
-                System.arraycopy(docker, 0, command, 0, docker.length);
-                System.arraycopy(sourceFilenames, 0, command, docker.length + 1, sourceFilenames.length);
-                return command;
+                exec_cmd = String.format("javac %s", sources).split(" ");
+                break;
             }
             case "cpp", "c++", "c":
             {
-                String[] docker = getDockerCommand(rootdir, DockerImage.C_CPP, true);
-                command = new String[3 + docker.length + sourceFilenames.length];
-
-                command[docker.length] = switch (language) {
+                String compiler = switch (language) {
                     case "c" -> "gcc";
                     default -> "g++";
                 };
-                command[docker.length + 1 + sourceFilenames.length] = "-o";
-                command[docker.length + 2 + sourceFilenames.length] = "submission";
-
-                System.arraycopy(docker, 0, command, 0, docker.length);
-                System.arraycopy(sourceFilenames, 0, command, docker.length + 1, sourceFilenames.length);
-                return command;
+                exec_cmd = String.format("%s %s -o submission", compiler, sources).split(" ");
+                break;
             }
             default:
                 return null;
-        }
+        };
+        String[] command = getDockerCommand(container_id, true, exec_cmd);
+
+        return command;
+    }
+
+
+    public static void setExecCmdContainerID(String[] cmd, String id) {
+        cmd[3] = id;
     }
 
     public static String[] getExecuteCommand(FileManager fm) {
         String rootdir = fm.getRootdir().toAbsolutePath().toString();
-        String[] cmd;
-        String[] docker_cmd;
+        String[] exec_cmd;
         switch (fm.getLanguage()) {
             case "java":
             {
-                cmd= new String[docker_cmd_length + 2];
-                docker_cmd = getDockerCommand(rootdir, DockerImage.JAVA, false);
-                cmd[docker_cmd_length] = "java";
-                cmd[docker_cmd_length + 1] = String.format("./%s",fm.getCurrentFileStringPath().replace(".java","").replaceAll("[\\\\/]",".")); // idk if com.exception.ccpp.Main is in all program
+                exec_cmd = String.format("java %s", fm.getCurrentFileStringPath().replace(".java","").replaceAll("[\\\\/]",".")).split(" "); // idk if com.exception.ccpp.Main is in all program
                 break;
             }
             case "cpp", "c++", "c":
             {
-                cmd = new String[docker_cmd_length + 3];
-                docker_cmd = getDockerCommand(rootdir, DockerImage.C_CPP, false);
-                int i = 0;
-                cmd[docker_cmd_length + i] = "stdbuf";
-                cmd[docker_cmd_length + (++i)] = "-o0";
-                cmd[docker_cmd_length + (++i)] = "./submission";
+                exec_cmd = "./submission".split(" ");
                 break;
             }
             case "python", "py":
             {
-                cmd= new String[docker_cmd_length + 2];
-                docker_cmd = getDockerCommand(rootdir, DockerImage.PYTHON, false);
-                cmd[docker_cmd_length] = "python";
-                cmd[docker_cmd_length + 1] = String.format("./%s",fm.getCurrentFileStringPath());
+                exec_cmd = String.format("python %s", String.format("./%s",fm.getCurrentFileStringPath())).split(" ");
                 break;
             }
             default:
                 throw new IllegalArgumentException("Unsupported language.");
         };
-        System.arraycopy(docker_cmd, 0, cmd, 0, docker_cmd_length);
-        return cmd;
+        return getDockerCommand(rootdir, false, exec_cmd);
     }
 
-    public enum DockerImage {
-        JAVA,
-        C_CPP,
-        PYTHON
-    }
+
 
     static String NO_JDK_ERROR = "Java Compiler not found.\nEnsure you are running on a JDK.\n";
     static String NO_C_COMPILER_ERROR =
@@ -129,4 +88,5 @@ Windows:
 macOS:
   Command Line Tools: xcode-select --install
 """;
+
 }
