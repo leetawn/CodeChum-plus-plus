@@ -1,6 +1,7 @@
 package com.exception.ccpp.FileManagement;
 
 import com.exception.ccpp.CustomExceptions.NotDirException;
+import com.exception.ccpp.DockerHandler;
 import com.exception.ccpp.GUI.FileExplorer;
 
 import java.io.IOException;
@@ -8,6 +9,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
+import static com.exception.ccpp.Gang.SlaveManager.romanArmy;
 import static com.exception.ccpp.Gang.SlaveManager.slaveWorkers;
 
 public class FileManager {
@@ -160,6 +162,12 @@ public class FileManager {
         rootPath = rootPath.toAbsolutePath().normalize();
         if (!Files.isDirectory(rootPath)) throw new NotDirException();
         this.rootdir = rootPath;
+        romanArmy.submit("create_workers", ()->{
+            DockerHandler.stopAllDockers();
+            DockerHandler.createWorker(rootdir.toString(), DockerHandler.DockerImageType.C_CPP);
+            DockerHandler.createWorker(rootdir.toString(), DockerHandler.DockerImageType.JAVA);
+            DockerHandler.createWorker(rootdir.toString(), DockerHandler.DockerImageType.PYTHON);
+        });
         return this;
     }
     public FileManager setRootdir(String rootDir) throws NotDirException {

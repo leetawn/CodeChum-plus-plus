@@ -1,23 +1,22 @@
 package com.exception.ccpp.CCJudge;
 
 
+import com.exception.ccpp.ProcCMD;
 import com.exception.ccpp.FileManagement.FileManager;
 
 import java.nio.file.Path;
 
-import static com.exception.ccpp.DockerHandler.DockerImageType;
 import static com.exception.ccpp.DockerHandler.getDockerCommand;
 
 public class ExecutionConfig {
 public static boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().contains("win");
 
-    public static String[] getCompileCommand(FileManager fm, String container_id) {
+    public static ProcCMD getCompileCommand(FileManager fm, String container_id) {
         String[] sourceFilenames = fm.getLanguageFiles().stream().map(fm::getRelativePath).map(Path::toString).toArray(String[]::new);
         return getCompileCommand(fm.getLanguage(), sourceFilenames, container_id);
     }
 
-    private static String[] getCompileCommand(String language, String[] sourceFilenames, String container_id) {
-
+    private static ProcCMD getCompileCommand(String language, String[] sourceFilenames, String container_id) {
         String sources = String.join(" ", sourceFilenames);
         String[] exec_cmd;
         switch (language) {
@@ -28,49 +27,50 @@ public static boolean IS_WINDOWS = System.getProperty("os.name").toLowerCase().c
             }
             case "cpp", "c++", "c":
             {
-                String compiler = switch (language) {
+                exec_cmd = new String[sourceFilenames.length + 3];
+                exec_cmd[0] = switch (language) {
                     case "c" -> "gcc";
                     default -> "g++";
                 };
-                exec_cmd = String.format("%s %s -o submission", compiler, sources).split(" ");
+                System.arraycopy(sourceFilenames, 0, exec_cmd, 1, sourceFilenames.length);
+                exec_cmd[sourceFilenames.length + 1] = "-o";
+                exec_cmd[sourceFilenames.length + 2] = "submission";
+//                exec_cmd = String.format("%s %s -o submission", compiler, sources).split(" ");
                 break;
             }
             default:
                 return null;
         };
-        String[] command = getDockerCommand(container_id, true, exec_cmd);
+        ProcCMD command = getDockerCommand(container_id, exec_cmd);
 
         return command;
     }
 
-
-    public static void setExecCmdContainerID(String[] cmd, String id) {
-        cmd[3] = id;
-    }
-
-    public static String[] getExecuteCommand(FileManager fm) {
-        String rootdir = fm.getRootdir().toAbsolutePath().toString();
-        String[] exec_cmd;
+    public static ProcCMD getExecuteCommand(FileManager fm) {
+        ProcCMD exec_cmd = getDockerCommand(null, null);
+        String run_cmd;
         switch (fm.getLanguage()) {
             case "java":
             {
-                exec_cmd = String.format("java %s", fm.getCurrentFileStringPath().replace(".java","").replaceAll("[\\\\/]",".")).split(" "); // idk if com.exception.ccpp.Main is in all program
+                run_cmd = String.format("java %s", fm.getCurrentFileStringPath().replace(".java","").replaceAll("[\\\\/]",".")); // idk if com.exception.ccpp.Main is in all program
+                System.err.println("Base run_cmd: " + run_cmd);
                 break;
             }
             case "cpp", "c++", "c":
             {
-                exec_cmd = "./submission".split(" ");
+                run_cmd = "./submission";
                 break;
             }
             case "python", "py":
             {
-                exec_cmd = String.format("python %s", String.format("./%s",fm.getCurrentFileStringPath())).split(" ");
+                run_cmd = String.format("python ./%s", fm.getCurrentFileStringPath());
                 break;
             }
             default:
                 throw new IllegalArgumentException("Unsupported language.");
         };
-        return getDockerCommand(rootdir, false, exec_cmd);
+
+        return exec_cmd.setRunCMD(run_cmd);
     }
 
 

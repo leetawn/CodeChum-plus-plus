@@ -6,6 +6,7 @@
     import com.exception.ccpp.Debug.JTextLogger;
     import com.exception.ccpp.FileManagement.FileManager;
     import com.exception.ccpp.GUI.UpdateGUICallback;
+    import com.exception.ccpp.ProcCMD;
     import com.pty4j.PtyProcessBuilder;
 
     import javax.swing.*;
@@ -44,7 +45,7 @@
         private boolean prompt_again;
         private TerminalCallback exitCallback;
         private UpdateGUICallback guiCallback;
-        private String[] execCmd;
+        private ProcCMD execCmd;
         private JTextLogger output_logger;
         static TerminalApp instance;
         static boolean bypassFilter;
@@ -176,8 +177,8 @@
 
             System.err.println("[TerminalApp.execCmd]: fetching exec command");
             execCmd = ExecutionConfig.getExecuteCommand(fm);
-            System.err.println("[TerminalApp.execCmd]: " + String.join(" ", execCmd));
-            terminal_command = execCmd;
+            System.err.println("[TerminalApp.execCmd]: " + String.join(" ", execCmd.getCmd()));
+            terminal_command = execCmd.getCmd();
             return true;
         }
 

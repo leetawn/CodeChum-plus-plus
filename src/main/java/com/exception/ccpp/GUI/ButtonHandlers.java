@@ -55,7 +55,7 @@ public class ButtonHandlers {
                     try {
                         fe.updateRootDirectory(selectedDir.getAbsolutePath());
                         te.setTextArea(false);
-                        te.actualOutputArea.setText("Successfully loaded new project: " + selectedDir.getName());
+//                        te.actualOutputArea.setText("Successfully loaded new project: " + selectedDir.getName());
                     } catch (NotDirException ex) {
                         JOptionPane.showMessageDialog(te, "Error loading directory: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
                     }
@@ -244,6 +244,8 @@ public class ButtonHandlers {
             });
             startTime = System.currentTimeMillis();
             Judge.judge(FileManager.getInstance(), ccq, (results, verdict) -> {
+                long endTime = System.currentTimeMillis();
+                System.out.printf("Results finished in : %d milliseconds\n", (endTime - startTime));
 
                 if (results.length <= 0)  {
                     enableButton();
@@ -318,8 +320,6 @@ public class ButtonHandlers {
 
         private void enableButton()
         {
-            long endTime = System.currentTimeMillis();
-            System.out.printf("Results finished in : %d milliseconds\n", (endTime - startTime));
             romanArmy.submit("enable",()->{
                 try {
                     Thread.sleep(500);

@@ -66,7 +66,7 @@ public class TextEditor extends JPanel {
     private JPanel tcMenu;
     private boolean is_diff_open;
     private StyledDocument actual_null_doc, expected_null_doc;
-    private JTextPane q_description;
+    private JEditorPane q_description;
     private JLabel q_title;
     private JLabel q_author;
     private final int ICON_SIZE = 20;
@@ -285,7 +285,7 @@ public class TextEditor extends JPanel {
 
         int sides = 16;
         int top_bot = 8;
-        q_description = new JTextPane();
+        q_description = new JEditorPane();
         q_description.setContentType("text/html");
         q_description.setEditable(false);
         q_description.setFont(new Font(null, Font.PLAIN, 16)); // size 24
@@ -974,9 +974,8 @@ public class TextEditor extends JPanel {
         StringBuilder buffer = new StringBuilder();
         boolean excess = false, mismatch = false;
         for (int i = 0; i < maxLines; i++) {
-            String actualLine = (i < actualLines.length) ? actualLines[i] : "";
-            String expectedLine = (i < expectedLines.length) ? expectedLines[i] : "";
-
+            String actualLine = (i < actualLines.length) ? actualLines[i].trim() : "";
+            String expectedLine = (i < expectedLines.length) ? expectedLines[i].trim() : "";
             int maxLength = Math.max(actualLine.length(), expectedLine.length());
 
             // full line, char by char
@@ -1008,7 +1007,6 @@ public class TextEditor extends JPanel {
                         SwingUtilities.invokeLater(() ->
                         {
                             try {
-                                // TODO OPTIMIZATION: setLargeText and doc.setCharacterAttributes();
                                 doc.insertString(doc.getLength(), final_str, final_style);
                             } catch (BadLocationException ignored) {}
                         });
@@ -1029,9 +1027,12 @@ public class TextEditor extends JPanel {
         if (!buffer.isEmpty()) {
             final AttributeSet final_style = styleToApply;
             final String final_str = buffer.toString();
-            try {
-                doc.insertString(doc.getLength(), final_str, final_style);
-            } catch (BadLocationException ignored) {}
+            SwingUtilities.invokeLater(() ->
+            {
+                try {
+                    doc.insertString(doc.getLength(), final_str, final_style);
+                } catch (BadLocationException ignored) {}
+            });
         }
         if (mismatch) { return 2; }
         if (excess) { return 1; }

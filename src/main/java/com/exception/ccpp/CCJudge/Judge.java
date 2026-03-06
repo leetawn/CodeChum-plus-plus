@@ -6,6 +6,7 @@ import com.exception.ccpp.Debug.DebugLog;
 import com.exception.ccpp.DockerHandler;
 import com.exception.ccpp.FileManagement.FileManager;
 import com.exception.ccpp.FileManagement.SFile;
+import com.exception.ccpp.ProcCMD;
 import com.pty4j.PtyProcessBuilder;
 
 import javax.tools.*;
@@ -17,7 +18,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static com.exception.ccpp.CCJudge.ExecutionConfig.*;
 import static com.exception.ccpp.Gang.SlaveManager.romanArmy;
 import static com.exception.ccpp.Gang.SlaveManager.slaveWorkers;
 import static com.exception.ccpp.DockerHandler.DockerImageType;
@@ -46,7 +46,7 @@ public class Judge {
     // will output an Array of SubmissionRecord, check the Submission Record definition
     // for TERMINAL USE ONLY
     static void judgeInteractively(
-            String[] cmd,
+            ProcCMD cmd,
             FileManager fm,
             String[] testInputs,
             Consumer<SubmissionRecord[]> callback,
@@ -108,7 +108,8 @@ public class Judge {
                 verdicts[i++] = new SubmissionRecord(JudgeVerdict.UE, "Unknown Error", tc);
             }
             // COMPILE
-            String container_id = DockerHandler.createWorker(rootdir, dt);
+
+            String container_id = DockerHandler.getContainerInstances(dt).getFirst();
             judge_logger.logln("[Judge.judge]: Compiling...");
             try {
                 judge_res = compile(fm, judge_logger, container_id); // WAITS TO FINISH
@@ -133,11 +134,19 @@ public class Judge {
             judge_logger.logln("[Judge.judge]: Compilation Done.");
 
             // judgeInteractively (Parallel)
-            String[] cmd = ExecutionConfig.getExecuteCommand(fm);
+            ProcCMD cmd = ExecutionConfig.getExecuteCommand(fm);
             List<Future<SubmissionRecord>> futures = new ArrayList<>();
 
-            ExecutionConfig.setExecCmdContainerID(cmd, container_id);
-            Callable<SubmissionRecord>[] tasks = romanArmy.invoke(new DivideWork(cmd, rootdir, language, testcases_keys, judge_logger, 0, testcases_keys.size() - 1, container_id, dt));
+            cmd.setContainerID(container_id); // temporary
+            Callable<SubmissionRecord>[] tasks = new Callable[testcases_size];
+
+            i = 0;
+            for (Map.Entry<Testcase, String> entry : testcases.entrySet())
+            {
+                Testcase tc = entry.getKey();
+                String uuid = entry.getValue();
+                tasks[i++] = new JudgeSlave(cmd, rootdir, language, tc, uuid, i, null);
+            }
 
             try {
                 futures = slaveWorkers.invokeAll(TASK_TESTCASE_RUNNER, List.of(tasks));
@@ -166,7 +175,6 @@ public class Judge {
                 }
 
 
-            parallelCleanup(fm);
             judge_logger.logln("[Judge.judge]: Returning Results...\n");
             end_judge(callback, verdicts, status);
         });
@@ -205,15 +213,10 @@ public class Judge {
 
     static SubmissionRecord compile(FileManager fm, CCLogger logger, String container_id) throws IOException, InterruptedException {
         if (logger == null) logger = judge_logger;
-        String[] compileCommand = null;
+        ProcCMD compileCommand = null;
         switch (fm.getLanguage().toLowerCase()) {
-            case "java": {
+            case "java", "c", "cpp", "c++": {
                 compileCommand = ExecutionConfig.getCompileCommand(fm, container_id);
-                break;
-            }
-            case "c","cpp", "c++": {
-                compileCommand = ExecutionConfig.getCompileCommand(fm, container_id);
-                if (compileCommand == null) return new SubmissionRecord(JudgeVerdict.CE, NO_C_COMPILER_ERROR, null);
                 break;
             }
             default: {
@@ -221,10 +224,9 @@ public class Judge {
                 return new SubmissionRecord(JudgeVerdict.NONE, "No compilation required for " + fm.getLanguage(), null);
             }
         }
-        System.err.println("-> Compiling: " + String.join(" ", compileCommand));
+        System.err.println("-> Compiling: " + String.join(" ", compileCommand.getCmd()));
 
-
-        ProcessBuilder pb = new ProcessBuilder(compileCommand);
+        ProcessBuilder pb = new ProcessBuilder(compileCommand.getCmd());
         pb.directory(fm.getRootdir().toFile());
 
         return startCompilation(pb);
@@ -317,75 +319,12 @@ public class Judge {
         }
     }
 
-    /*********************** STATIC CLASSES, ENUMS OR WHATEVER **********************/
-    public static class DivideWork extends RecursiveTask<Callable<SubmissionRecord>[]> {
-        private final int start, end;
-        private final String rootdir, language;
-        private String[] cmd;
-        private final ArrayList<Testcase> testcases;
-        private final DebugLog logger;
-        private String container_id;
-        DockerImageType docker_image_type;
-
-        public DivideWork(
-            String[] cmd,
-            String rootdir,
-            String language,
-            ArrayList<Testcase> testcases,
-            DebugLog logger,
-            int start,
-            int end,
-            String container_id,
-            DockerImageType dockerImageType
-        ) {
-            this.cmd = cmd;
-            this.rootdir = rootdir;
-            this.testcases = testcases;
-            this.language = language;
-            this.logger = logger;
-            this.start = start;
-            this.end = end;
-            this.container_id = container_id;
-            this.docker_image_type = dockerImageType;
-        }
-
-        @Override
-        protected Callable<SubmissionRecord>[] compute() {
-            if (start > end) return new Callable[0];
-
-            int length = end - start;
-            int mid = start + length / 2;
-            if (start == end) {
-                if (container_id == null)
-                {
-                    container_id = DockerHandler.createWorker(rootdir, docker_image_type);
-                }
-
-                String[] new_cmd = Arrays.copyOf(cmd, cmd.length);
-                setExecCmdContainerID(new_cmd, container_id);
-                return new Callable[]{new JudgeSlave(new_cmd, rootdir, language, testcases.get(mid), mid, judge_logger)};
-            }
-
-            DivideWork left = new DivideWork(cmd, rootdir, language, testcases, logger, start, mid, container_id, docker_image_type);
-            DivideWork right = new DivideWork(cmd, rootdir, language, testcases, logger, mid + 1, end, null, docker_image_type);
-            left.fork();
-
-            Callable<SubmissionRecord>[] rightResult = right.compute();
-            Callable<SubmissionRecord>[] leftResult = left.join();
-
-            // merge left and right
-            Callable<SubmissionRecord>[] merged = new Callable[leftResult.length + rightResult.length];
-            System.arraycopy(leftResult, 0, merged, 0, leftResult.length);
-            System.arraycopy(rightResult, 0, merged, leftResult.length, rightResult.length);
-            return merged;
-        }
-    }
-
     static class JudgeSlave implements Callable<SubmissionRecord> {
         private static final long INPUT_DELAY_MS = 50;
-        private final String[] executeCommand;
+        private final ProcCMD execCMD;
         private final String rootdir, language;
         private final CCLogger logger;
+        private final String uuid;
         private Process process = null;
         private Testcase tc;
         int tc_num;
@@ -393,18 +332,19 @@ public class Judge {
         StringBuffer transcript = new StringBuffer();
 
         JudgeSlave(
-                String[] cmd,
+                ProcCMD cmd,
                 FileManager fm, String[] inputs,
                 String expected_output,
                 int testcase_number,
                 CCLogger logger
         ) {
-            this(cmd, fm.getRootdir().toString(), fm.getLanguage(), new Testcase(inputs, expected_output), testcase_number, logger);
+            this(cmd, fm.getRootdir().toString(), fm.getLanguage(), new Testcase(inputs, expected_output), UUID.randomUUID().toString(), testcase_number, logger);
         }
 
-        JudgeSlave(String[] cmd, String rootdir, String language, Testcase tc, int testcase_number, CCLogger logger) {
+        JudgeSlave(ProcCMD cmd, String rootdir, String language, Testcase tc, String uuid, int testcase_number, CCLogger logger) {
             if (logger == null) logger = judge_logger;
-            this.executeCommand = cmd;
+            this.execCMD = cmd.clone();
+            this.uuid = uuid;
             this.tc = tc;
             this.rootdir = rootdir;
             this.language = language;
@@ -412,6 +352,7 @@ public class Judge {
             this.logger = Judge.judge_logger; // FIXME: Changer to logger;
             result = new SubmissionRecord(JudgeVerdict.ESF, "Execution System Failure (IOException)\n", tc);
         }
+
         public void halt() {
             if (process != null && process.isAlive()) {
                 process.destroy();
@@ -426,79 +367,47 @@ public class Judge {
         }
 
         // Slave done with work
-        SubmissionRecord finishQuota() {
+        private SubmissionRecord finishQuota() {
             mutilate();
             runningPTY.remove(process);
             return result;
         }
 
+        private void finalizeTranscript()
+        {
+            try {
+                Path s = Paths.get(rootdir, uuid);
+                String content = Files.readString(s);
+                transcript.append(content);
+            } catch (IOException e) {
+                System.err.println("Reading Ouputfile failed!");
+            }
+        }
+
+
+
         @Override
         //throws Exception
         // RETURNS Verdicts: RE/TLE/NONE
         public SubmissionRecord call()  {
-            // VARS
-            String cmd_newline = "\n";
-            String[] inputs = tc.getInputs();
-
-
-            String n = String.join(cmd_newline,inputs);
-            // PROCESS
+            execCMD.setInputs(String.join("\n", tc.getInputs())).setOutputFilename(uuid);
             try {
-                process = new PtyProcessBuilder(executeCommand)
+                process = new PtyProcessBuilder(execCMD.getCmd())
                         .setEnvironment(env)
                         .setRedirectErrorStream(true)
                         .setDirectory(rootdir)
                         .setConsole(true)
                         .start();
             } catch (IOException e) {
+                finalizeTranscript();
                 return finishQuota();
             }
             runningPTY.add(process);
 
-            InputStream in = process.getInputStream();
-            OutputStream out = process.getOutputStream();
-            BufferedWriter processInputWriter = new BufferedWriter(new OutputStreamWriter(out));
-
-            romanArmy.submit(TASK_JUDGE,()->{
-                byte[] buffer = new byte[1000];
-                int i = 0;
-                try {
-                    Thread.sleep(25);
-                    int read;
-                    while ((read = in.read(buffer)) != -1) {
-                        String b = new String(buffer, 0, read);
-                        transcript.append(b);
-
-                        if (in.available() <= 0 && i < inputs.length) {
-                            processInputWriter.write(inputs[i++] + cmd_newline);
-                            processInputWriter.flush();
-                        }
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                } finally {
-                    try {
-                        in.close();
-                        out.close();
-                    } catch (Exception e) {}
-                }
-            });
-
-
-            long startTime = System.currentTimeMillis();
-
-            if (!process.isAlive() && process.exitValue() == 0)
-                goodExit();
-
             try {
-                long remainingTime;
-                do
-                {
-                    remainingTime = TIME_LIMIT_MS - (System.currentTimeMillis() - startTime);
-                    if (process.waitFor(200, TimeUnit.MILLISECONDS))
-                        break;
-                } while (remainingTime > 0);
+                process.waitFor(TIME_LIMIT_MS, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
+                finalizeTranscript();
                 return finishQuota().setOutput("Execution Interrupted\n");
             }
 
@@ -509,6 +418,7 @@ public class Judge {
 
         private SubmissionRecord tleExit()
         {
+            finalizeTranscript();
             return finishQuota()
                 .setVerdict(Judge.JudgeVerdict.TLE)
                 .setOutput(Helpers.stripAnsiCRLines(
@@ -520,6 +430,7 @@ public class Judge {
         }
 
         private SubmissionRecord rteExit() {
+            finalizeTranscript();
             String errorOutput = "UnknownError";
             try {
                 errorOutput = readStream(process.getErrorStream());
@@ -539,30 +450,10 @@ public class Judge {
 
         private SubmissionRecord goodExit()
         {
-            final String raw = transcript.toString();
-            final String res = Helpers.stripAnsiCRLines(raw);
-            return finishQuota().setVerdict(JudgeVerdict.NONE).setOutput((res).trim());
-        }
-    }
-
-    static class OutputReader implements Callable<Void> {
-        private final InputStream in;
-        private final BufferedReader reader;
-        private final StringBuffer transcript;
-        private final StringBuilder sb = new StringBuilder();
-
-
-        public OutputReader(InputStream in, StringBuffer transcript) {
-            this.in = in;
-            this.transcript = transcript;
-            this.reader = new BufferedReader(new InputStreamReader(in));
-        }
-
-        @Override
-        public Void call() {
-            int c;
-
-            return null;
+            finalizeTranscript();
+            final String raw = transcript.toString().trim();
+            System.out.println(raw);
+            return finishQuota().setVerdict(JudgeVerdict.NONE).setOutput(raw);
         }
     }
 

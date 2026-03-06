@@ -198,10 +198,7 @@ public class Helpers {
                 String[] leftResult = left.join();
 
                 // merge left and right
-                String[] merged = new String[leftResult.length + rightResult.length];
-                System.arraycopy(leftResult, 0, merged, 0, leftResult.length);
-                System.arraycopy(rightResult, 0, merged, leftResult.length, rightResult.length);
-                return merged;
+                return mergeStrings(leftResult, rightResult);
             }
         }
     }
