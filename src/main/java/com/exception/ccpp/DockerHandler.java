@@ -49,28 +49,20 @@ public class DockerHandler {
 
     public static void stopDockerWorker(DockerImageType image)
     {
-        StringBuilder sb = new StringBuilder("\"");
+        StringBuilder sb = new StringBuilder();
         HashSet<String> instances_id = CONTAINER_INSTANCES[image.ordinal()];
         int size = instances_id.size();
         int i =0;
         for (String id : CONTAINER_INSTANCES[image.ordinal()]) {
-            sb.append("docker rm -f -v ");
-            sb.append(id);
-            sb.append("2>/dev/null || true");
-            if (i++ < size-1)
-            {
-                sb.append(" & ");
+            try {
+                new ProcessBuilder(String.format("docker rm -f -v %s", id).split(" ")).start().waitFor();
+
+            } catch (Exception e) {
+                System.err.println("[DockerHandler.startDockerWorker]: Error starting docker worker!");
             }
         }
-        sb.append("\"");
+        instances_id.clear();
 
-        String[] cmd =  {"bash", "-c", sb.toString()};
-        try {
-            new ProcessBuilder(cmd).start().waitFor();
-            instances_id.clear();
-        } catch (Exception e) {
-            System.err.println("[DockerHandler.startDockerWorker]: Error starting docker worker!");
-        }
     }
 
     public static LinkedHashSet<String> getContainerInstances(DockerImageType image)
